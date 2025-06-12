@@ -35,17 +35,18 @@ class AudioTemperatureDataset(Dataset):
         self.augment = augment
 
         # Temperature mapping
-        self.temp_to_label = {20: 0, 25: 1, 30: 2, 35: 3, 40: 4, 45: 5, 50: 6, 55 : 7}
+        self.temp_to_label = {20: 0, 25: 1, 30: 2, 35: 3, 40: 4, 45: 5, 50: 6, 55: 7}
         self.label_to_temp = {v: k for k, v in self.temp_to_label.items()}
 
         self.slice_data = self._create_slice_index()
 
-        # Spectrogram transforms
         self.mel_spectrogram = T.MelSpectrogram(
             sample_rate=self.sample_rate,
             n_fft=2048,
             hop_length=512,
-            n_mels=128
+            n_mels=128,
+            f_min=20,
+            f_max=8000
         )
 
         self.db_transform = T.AmplitudeToDB(top_db=80)
@@ -53,8 +54,8 @@ class AudioTemperatureDataset(Dataset):
         # Audio augmentation
         if self.augment:
             self.audio_augment = Compose([
-                Gain(min_gain_db=-5, max_gain_db=5, p=0.5),
-                PitchShift(min_semitones=-3, max_semitones=3, p=0.5)
+                Gain(min_gain_db=-2, max_gain_db=2, p=0.3),
+                PitchShift(min_semitones=-1, max_semitones=1, p=0.2)
             ])
 
     def _create_slice_index(self):
@@ -183,38 +184,30 @@ class AudioTemperatureDataset(Dataset):
     def _apply_audio_augmentation(self, audio_slice):
         """Apply audio augmentation to the audio slice"""
         if hasattr(self, 'audio_augment'):
-            # Convert to numpy for audiomentations
             audio_np = audio_slice.squeeze().numpy()
-            # Apply augmentation
             augmented = self.audio_augment(samples=audio_np, sample_rate=self.sample_rate)
-            # Convert back to tensor
             return torch.from_numpy(augmented).unsqueeze(0)
         return audio_slice
 
     def _audio_to_spectrogram(self, audio_slice):
         """Convert audio slice to mel spectrogram"""
-        # Generate mel spectrogram
         spec = self.mel_spectrogram(audio_slice)
-        # Convert to dB scale
         spec = self.db_transform(spec)
-        # Remove channel dimension and return
         return spec.squeeze(0)
 
     def _apply_spectrogram_augmentation(self, spectrogram):
-        """Apply spectrogram augmentation"""
-        # Time stretch augmentation
-        target_shape = spectrogram.shape
-        stretch = T.TimeStretch(n_freq=128)
-        stretch_factor = choice([0.5, 0.7, 1.0, 1.2, 1.5])
+        if torch.rand(1).item() < 0.3:
+            spectrogram = T.TimeMasking(time_mask_param=25)(spectrogram)
+        if torch.rand(1).item() < 0.3:
+            spectrogram = T.FrequencyMasking(freq_mask_param=10)(spectrogram)
+        return spectrogram
 
-        # Add batch dimension for TimeStretch
-        spec_with_batch = spectrogram.unsqueeze(0)
-        stretched = stretch(spec_with_batch, stretch_factor)
-
-        # Crop/pad to original shape and remove batch dimension
-        stretched = crop(stretched.squeeze(0), 0, 0, *target_shape)
-
-        return stretched.to(torch.float32)
+    def _normalize_spectrogram(self, spectrogram):
+        mean = spectrogram.mean()
+        std = spectrogram.std()
+        if std > 1e-6:
+            spectrogram = (spectrogram - mean) / std
+        return spectrogram
 
     def __len__(self):
         return len(self.slice_data)
@@ -222,7 +215,6 @@ class AudioTemperatureDataset(Dataset):
     def __getitem__(self, idx):
         slice_info = self.slice_data[idx]
 
-        # Load annotation
         start_time, end_time = self._load_annotation(slice_info['annotation_path'])
 
         # Extract the specific slice
@@ -233,21 +225,19 @@ class AudioTemperatureDataset(Dataset):
             slice_info['slice_idx']
         )
 
-        # Apply audio augmentation during training
         if self.augment and torch.rand(1).item() < 0.5:
             audio_slice = self._apply_audio_augmentation(audio_slice)
 
-        # Convert to spectrogram
         spectrogram = self._audio_to_spectrogram(audio_slice)
 
-        # Apply spectrogram augmentation during training
-        if self.augment and torch.rand(1).item() < 0.3:
+        if self.augment:
             spectrogram = self._apply_spectrogram_augmentation(spectrogram)
+
+        spectrogram = self._normalize_spectrogram(spectrogram)
 
         # Convert to 3-channel image for ResNet (RGB)
         spectrogram = torch.stack([spectrogram, spectrogram, spectrogram])
 
-        # Apply transforms
         if self.transform:
             spectrogram = self.transform(spectrogram)
 

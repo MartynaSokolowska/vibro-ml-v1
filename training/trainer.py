@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
+from sklearn.metrics import f1_score
 
 
 class AudioTrainer:
@@ -41,6 +42,8 @@ class AudioTrainer:
             'val_losses': [],
             'train_accuracies': [],
             'val_accuracies': [],
+            'train_f1_scores': [],
+            'val_f1_scores': [],
             'best_val_acc': 0.0
         }
 
@@ -52,12 +55,15 @@ class AudioTrainer:
         train_loss = 0.0
         train_correct = 0
         train_total = 0
+        all_predictions = []
+        all_targets = []
 
         pbar = tqdm(train_loader, desc='Training')
 
         for data, targets in pbar:
             data, targets = data.to(self.device), targets.to(self.device)
 
+            # print(data.shape)
             self.optimizer.zero_grad()
             outputs = self.model(data)
             loss = self.criterion(outputs, targets)
@@ -69,6 +75,9 @@ class AudioTrainer:
             train_total += targets.size(0)
             train_correct += predicted.eq(targets).sum().item()
 
+            all_predictions.extend(predicted.cpu().numpy())
+            all_targets.extend(targets.cpu().numpy())
+
             # Update progress bar
             pbar.set_postfix({
                 'Loss': f'{loss.item():.4f}',
@@ -78,7 +87,8 @@ class AudioTrainer:
         train_acc = 100. * train_correct / train_total
         avg_train_loss = train_loss / len(train_loader)
 
-        return avg_train_loss, train_acc
+        train_f1 = f1_score(all_targets, all_predictions, average='weighted')
+        return avg_train_loss, train_acc, train_f1
 
     def validate_epoch(self, val_loader):
         """Validate for one epoch"""
@@ -86,6 +96,8 @@ class AudioTrainer:
         val_loss = 0.0
         val_correct = 0
         val_total = 0
+        all_predictions = []
+        all_targets = []
 
         with torch.no_grad():
             for data, targets in tqdm(val_loader, desc='Validation'):
@@ -98,10 +110,15 @@ class AudioTrainer:
                 val_total += targets.size(0)
                 val_correct += predicted.eq(targets).sum().item()
 
+                all_predictions.extend(predicted.cpu().numpy())
+                all_targets.extend(targets.cpu().numpy())
+
         val_acc = 100. * val_correct / val_total
         avg_val_loss = val_loss / len(val_loader)
 
-        return avg_val_loss, val_acc
+        val_f1 = f1_score(all_targets, all_predictions, average='weighted')
+
+        return avg_val_loss, val_acc, val_f1
 
     def train(self, train_loader, val_loader):
         """Full training loop"""
@@ -113,17 +130,16 @@ class AudioTrainer:
             print(f'\nEpoch {epoch + 1}/{num_epochs}')
             print('-' * 50)
 
-            # Train
-            train_loss, train_acc = self.train_epoch(train_loader)
-
-            # Validate
-            val_loss, val_acc = self.validate_epoch(val_loader)
+            train_loss, train_acc, train_f1 = self.train_epoch(train_loader)
+            val_loss, val_acc, val_f1 = self.validate_epoch(val_loader)
 
             # Update history
             self.history['train_losses'].append(train_loss)
             self.history['val_losses'].append(val_loss)
             self.history['train_accuracies'].append(train_acc)
             self.history['val_accuracies'].append(val_acc)
+            self.history['train_f1_scores'].append(train_f1)
+            self.history['val_f1_scores'].append(val_f1)
 
             # Save best model
             if val_acc > self.history['best_val_acc']:
@@ -134,8 +150,8 @@ class AudioTrainer:
             self.scheduler.step()
 
             # Print epoch results
-            print(f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%')
-            print(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+            print(f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, Train F1: {train_f1:.4f}')
+            print(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%, Val F1: {val_f1:.4f}')
             print(f'Best Val Acc: {self.history["best_val_acc"]:.2f}%')
 
         # Load best model

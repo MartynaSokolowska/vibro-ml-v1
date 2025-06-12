@@ -9,7 +9,7 @@ from data.audio_dataset import AudioTemperatureDataset
 from training.model import VibroNet
 from training.trainer import AudioTrainer
 from utils.evaluation import evaluate_model
-from utils.visualization import plot_training_history
+from utils.visualization import plot_training_history, plot_confusion_matrix
 
 
 def load_config(config_path='config/config.yaml'):
@@ -173,46 +173,40 @@ def create_data_loaders(config):
 
 def main():
     """Main function"""
-    # Load configuration
     config = load_config()
 
-    # Set device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    # Create data loaders
     train_loader, val_loader, test_loader, dataset = create_data_loaders(config)
 
-    # Create model
     model = VibroNet(
         num_classes=config['model']['num_classes']
     )
 
-    # Create trainer
     trainer = AudioTrainer(
         model=model,
         config=config['training'],
         device=device
     )
 
-    # Train model
     print("Starting training...")
     trained_model, history = trainer.train(train_loader, val_loader)
 
-    # Plot training history
     plot_training_history(history)
 
-    # Evaluate on test set
     print("Evaluating on test set...")
     test_accuracy, classification_rep, predictions, targets = evaluate_model(
         trained_model, test_loader, device
     )
 
+    class_names = [dataset.label_to_temp[i] for i in range(len(dataset.label_to_temp))]
+    plot_confusion_matrix(targets, predictions, class_names)
+
     print(f"Test Accuracy: {test_accuracy:.4f}")
     print("\nClassification Report:")
     print(classification_rep)
 
-    # Save model
     model_save_path = config['training']['model_save_path']
     os.makedirs(os.path.dirname(model_save_path), exist_ok=True)
     torch.save({
