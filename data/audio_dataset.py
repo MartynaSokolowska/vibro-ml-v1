@@ -202,12 +202,6 @@ class AudioTemperatureDataset(Dataset):
             spectrogram = T.FrequencyMasking(freq_mask_param=10)(spectrogram)
         return spectrogram
 
-    def _normalize_spectrogram(self, spectrogram):
-        mean = spectrogram.mean()
-        std = spectrogram.std()
-        if std > 1e-6:
-            spectrogram = (spectrogram - mean) / std
-        return spectrogram
 
     def __len__(self):
         return len(self.slice_data)
@@ -232,8 +226,6 @@ class AudioTemperatureDataset(Dataset):
 
         if self.augment:
             spectrogram = self._apply_spectrogram_augmentation(spectrogram)
-
-        spectrogram = self._normalize_spectrogram(spectrogram)
 
         # Convert to 3-channel image for ResNet (RGB)
         spectrogram = torch.stack([spectrogram, spectrogram, spectrogram])
