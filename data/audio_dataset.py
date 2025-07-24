@@ -8,6 +8,8 @@ from audiomentations import Compose, Gain, PitchShift
 from torchvision.transforms.functional import crop
 from random import choice
 
+from utils.config_manager import load_config
+
 
 class AudioTemperatureDataset(Dataset):
     """Dataset for audio temperature classification"""
@@ -35,7 +37,8 @@ class AudioTemperatureDataset(Dataset):
         self.augment = augment
 
         # Temperature mapping
-        self.temp_to_label = {20: 0, 25: 1, 30: 2, 35: 3, 40: 4, 45: 5, 50: 6, 55: 7}
+        config = load_config()
+        self.temp_to_label = {temp: idx for idx, temp in enumerate(config["model"]["classes"])}
         self.label_to_temp = {v: k for k, v in self.temp_to_label.items()}
 
         self.slice_data = self._create_slice_index()
@@ -196,11 +199,19 @@ class AudioTemperatureDataset(Dataset):
         return spec.squeeze(0)
 
     def _apply_spectrogram_augmentation(self, spectrogram):
+        # TODO: Ogarnąć te wymiarowości, czy to błąd konkretnego pliku?
+        if spectrogram.dim() == 2:
+            spectrogram = spectrogram.unsqueeze(0)
+        elif spectrogram.dim() == 1:
+            spectrogram = spectrogram.unsqueeze(0).unsqueeze(0)
+        else:
+            raise ValueError(f"Unexpected spectrogram shape: {spectrogram.shape}")
+        
         if torch.rand(1).item() < 0.3:
             spectrogram = T.TimeMasking(time_mask_param=25)(spectrogram)
         if torch.rand(1).item() < 0.3:
             spectrogram = T.FrequencyMasking(freq_mask_param=10)(spectrogram)
-        return spectrogram
+        return spectrogram.squeeze(0)
 
 
     def __len__(self):

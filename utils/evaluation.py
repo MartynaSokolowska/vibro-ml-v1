@@ -1,9 +1,11 @@
 import torch
 from sklearn.metrics import accuracy_score, classification_report
 from training.model import VibroNet
+from utils.config_manager import load_config
 
 
 def evaluate_model(model, test_loader, device='cuda'):
+    config = load_config()
     """Evaluate model on test set"""
     model.eval()
     all_predictions = []
@@ -21,7 +23,7 @@ def evaluate_model(model, test_loader, device='cuda'):
     accuracy = accuracy_score(all_targets, all_predictions)
 
     # Convert labels back to temperatures for report
-    temp_mapping = {0: 20, 1: 25, 2: 30, 3: 35, 4: 40, 5: 45, 6: 50, 7: 55}  # TODO: should be from config
+    temp_mapping = {idx: temp for idx, temp in enumerate(config["model"]["classes"])}
     temp_targets = [temp_mapping[t] for t in all_targets]
     temp_predictions = [temp_mapping[p] for p in all_predictions]
 
@@ -44,6 +46,7 @@ def load_trained_model(model_path, device='cuda'):
 
 def predict_temperature(model, spectrogram, checkpoint=None, device='cuda'):
     """Predict temperature for a single spectrogram"""
+    config = load_config()
     model.eval()
 
     # Add batch dimension if needed
@@ -58,7 +61,7 @@ def predict_temperature(model, spectrogram, checkpoint=None, device='cuda'):
         _, predicted = outputs.max(1)
 
     # Convert to temperature
-    label_to_temp = {0: 20, 1: 25, 2: 30, 3: 35, 4: 40, 5: 45, 6: 50, 7: 55}
+    label_to_temp = {idx: temp for idx, temp in enumerate(config["model"]["classes"])}
     if checkpoint and 'label_to_temp' in checkpoint:
         label_to_temp = checkpoint['label_to_temp']
 
