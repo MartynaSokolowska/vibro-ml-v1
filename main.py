@@ -1,4 +1,3 @@
-import yaml
 import torch
 from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
@@ -8,15 +7,9 @@ import os
 from data.audio_dataset import AudioTemperatureDataset
 from training.model import VibroNet
 from training.trainer import AudioTrainer
+from utils.config_manager import load_config
 from utils.evaluation import evaluate_model
 from utils.visualization import plot_training_history, plot_confusion_matrix
-
-
-def load_config(config_path='config/config.yaml'):
-    """Load configuration from YAML file"""
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    return config
 
 
 def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed=42):
