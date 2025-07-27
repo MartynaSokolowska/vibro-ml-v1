@@ -2,7 +2,7 @@ import torch
 import os
 
 from data.data_manager import create_data_loaders
-from training.model import VibroNet
+from training.VibroNetClassifier import VibroNetClassifier
 from training.trainer import AudioTrainer
 from utils.config_manager import load_config
 from utils.evaluation import evaluate_model
@@ -18,7 +18,7 @@ def main():
 
     train_loader, val_loader, test_loader, dataset = create_data_loaders(config)
 
-    model = VibroNet(
+    model = VibroNetClassifier(
         num_classes=config['model']['num_classes']
     )
 

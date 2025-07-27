@@ -1,6 +1,6 @@
 import torch
 from sklearn.metrics import accuracy_score, classification_report
-from training.model import VibroNet
+from training.VibroNetClassifier import VibroNetClassifier
 from utils.config_manager import load_config
 
 
@@ -36,7 +36,7 @@ def load_trained_model(model_path, device='cuda'):
     """Load a trained model for inference"""
     checkpoint = torch.load(model_path, map_location=device)
 
-    model = VibroNet(num_classes=8)
+    model = VibroNetClassifier(num_classes=8)
     model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device)
     model.eval()

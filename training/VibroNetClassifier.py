@@ -2,7 +2,7 @@ import torch.nn as nn
 import torchvision.models as models
 
 
-class VibroNet(nn.Module):
+class VibroNetClassifier(nn.Module):
     """ResNet18-based audio classifier"""
 
     def __init__(self, num_classes=8):
@@ -12,7 +12,7 @@ class VibroNet(nn.Module):
         Args:
             num_classes: Number of temperature classes
         """
-        super(VibroNet, self).__init__()
+        super(VibroNetClassifier, self).__init__()
 
         self.resnet = models.resnet18(weights='DEFAULT')
 

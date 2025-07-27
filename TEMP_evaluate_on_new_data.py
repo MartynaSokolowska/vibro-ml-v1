@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 import os
 
 from data.audio_dataset import AudioTemperatureDataset
-from training.model import VibroNet
+from training.VibroNetClassifier import VibroNetClassifier
 from utils.evaluation import evaluate_model
 from utils.config_manager import load_config
 from utils.visualization import plot_confusion_matrix
@@ -12,7 +12,7 @@ from utils.visualization import plot_confusion_matrix
 def load_trained_model(model_path, device):
     checkpoint = torch.load(model_path, map_location=device)
 
-    model = VibroNet(num_classes=checkpoint['config']['model']['num_classes'])
+    model = VibroNetClassifier(num_classes=checkpoint['config']['model']['num_classes'])
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
     model.eval()

@@ -68,7 +68,7 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
 
     if equalize_num_samples:
         # NOTE: Right now it only cuts the number of samples to the smaller set for training 
-        # (consider augmentation or overlaping AND equalizing all datasets)
+        # (consider additional augmentation or overlaping AND equalizing all datasets)
         temp_to_files = defaultdict(list)
         for file_path in train_files:
             temp = file_to_temp[file_path]
