@@ -1,10 +1,11 @@
+import random
 from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
 from collections import defaultdict
 from data.audio_dataset import AudioTemperatureDataset
 
 
-def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed=42):
+def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed=42, equalize_num_samples = True):
     """
     Create train/val/test splits ensuring all slices from same file stay together
 
@@ -65,8 +66,34 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
     val_indices = []
     test_indices = []
 
-    for file_path in train_files:
-        train_indices.extend(file_to_slices[file_path])
+    if equalize_num_samples:
+        # NOTE: Right now it only cuts the number of samples to the smaller set for training 
+        # (consider augmentation or overlaping AND equalizing all datasets)
+        temp_to_files = defaultdict(list)
+        for file_path in train_files:
+            temp = file_to_temp[file_path]
+            temp_to_files[temp].append(file_path)
+        min_count = min(len(files) for files in temp_to_files.values())
+
+        temp_to_train_files = defaultdict(list)
+        for file_path in train_files:
+            temp = file_to_temp[file_path]
+            temp_to_train_files[temp].append(file_path)
+
+        balanced_train_files = []
+        for temp, files in temp_to_train_files.items():
+            if len(files) >= min_count:
+                balanced_train_files.extend(random.sample(files, min_count))
+            else:
+                print(f"⚠️ Warning: class {temp} has less than min_count files")
+
+        train_indices = []
+        for file_path in balanced_train_files:
+            train_indices.extend(file_to_slices[file_path])
+
+    else: 
+        for file_path in train_files:
+            train_indices.extend(file_to_slices[file_path])
 
     for file_path in val_files:
         val_indices.extend(file_to_slices[file_path])
