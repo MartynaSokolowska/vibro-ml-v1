@@ -1,7 +1,7 @@
 data:
   data_root: "C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data"
   annotation_root: "C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data\\annotations"
-  slice_length: 1.0 # seconds
+  slice_length: 0.1 # seconds
   sample_rate: 48000
   test_split: 0.2
   val_split: 0.2
@@ -20,7 +20,7 @@ training:
   weight_decay: 0.0001
   scheduler_step_size: 15
   scheduler_gamma: 0.1
-  model_save_path: "models/audio_temperature_classifier_new.pth"
+  model_save_path: "models/audio_temperature_classifier.pth"
 
 augmentation:
   enabled: true
