@@ -5,7 +5,7 @@ from tqdm import tqdm
 from sklearn.metrics import f1_score
 
 
-class AudioTrainer:
+class AudioClassificationTrainer:
     """Trainer class for audio temperature classification"""
 
     def __init__(self, model, config, device='cuda'):

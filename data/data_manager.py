@@ -3,6 +3,7 @@ from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
 from collections import defaultdict
 from data.audio_dataset import AudioTemperatureDataset
+from utils.config_manager import load_config
 
 
 def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed=42, equalize_num_samples = True):
@@ -25,7 +26,7 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
     for idx, slice_info in enumerate(dataset.slice_data):
         file_path = slice_info['audio_path']
         file_to_slices[file_path].append(idx)
-        file_to_temp[file_path] = slice_info['temperature']
+        file_to_temp[file_path] = slice_info['temperature_set']
 
     # Get unique files and their temperatures
     files = list(file_to_slices.keys())
@@ -38,16 +39,19 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
     for temp in file_temperatures:
         temp_counts[temp] += 1
 
-    print("Files per temperature:")
-    for temp, count in sorted(temp_counts.items()):
-        print(f"  {temp}°C: {count} files")
+    config = load_config()
+    if config['training']['type'] == 'classification':
+        print("Files per temperature:")
+        for temp, count in sorted(temp_counts.items()):
+            print(f"  {temp}°C: {count} files")
+        
 
     # First split: separate test files
     train_val_files, test_files = train_test_split(
         files,
         test_size=test_split,
         random_state=random_seed,
-        stratify=file_temperatures
+        stratify=file_temperatures if config['training']['type'] == 'classification' else None
     )
 
     # Get temperatures for remaining files
@@ -58,7 +62,7 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
         train_val_files,
         test_size=val_split,  # This is now relative to train_val_files
         random_state=random_seed,
-        stratify=train_val_temperatures
+        stratify=train_val_temperatures if config['training']['type'] == 'classification' else None
     )
 
     # Convert file lists to slice indices
