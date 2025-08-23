@@ -1,43 +1,18 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from tqdm import tqdm
 from sklearn.metrics import f1_score
+from tqdm import tqdm
+
+from training.base_trainer import BaseTrainer
 
 
-class AudioClassificationTrainer:
-    """Trainer class for audio temperature classification"""
-
+class AudioClassificationTrainer(BaseTrainer):
     def __init__(self, model, config, device='cuda'):
-        """
-        Initialize trainer
-
-        Args:
-            model: PyTorch model to train
-            config: Training configuration dictionary
-            device: Device to use for training
-        """
-        self.model = model.to(device)
-        self.config = config
-        self.device = device
-
-        # Loss function and optimizer
+        super().__init__(model, config, device)
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(
-            self.model.parameters(),
-            lr=config['learning_rate'],
-            weight_decay=config.get('weight_decay', 0.0001)
-        )
 
-        # Learning rate scheduler
-        self.scheduler = optim.lr_scheduler.StepLR(
-            self.optimizer,
-            step_size=config.get('scheduler_step_size', 15),
-            gamma=config.get('scheduler_gamma', 0.1)
-        )
-
-        # Training history
-        self.history = {
+    def init_history(self):
+        return {
             'train_losses': [],
             'val_losses': [],
             'train_accuracies': [],
@@ -46,8 +21,6 @@ class AudioClassificationTrainer:
             'val_f1_scores': [],
             'best_val_acc': 0.0
         }
-
-        self.best_model_state = None
 
     def train_epoch(self, train_loader):
         """Train for one epoch"""
@@ -120,41 +93,27 @@ class AudioClassificationTrainer:
 
         return avg_val_loss, val_acc, val_f1
 
-    def train(self, train_loader, val_loader):
-        """Full training loop"""
-        num_epochs = self.config['num_epochs']
+    def update_history(self, train_metrics, val_metrics):
+        train_loss, train_acc, train_f1 = train_metrics
+        val_loss, val_acc, val_f1 = val_metrics
 
-        print(f"Starting training for {num_epochs} epochs...")
+        self.history['train_losses'].append(train_loss)
+        self.history['val_losses'].append(val_loss)
+        self.history['train_accuracies'].append(train_acc)
+        self.history['val_accuracies'].append(val_acc)
+        self.history['train_f1_scores'].append(train_f1)
+        self.history['val_f1_scores'].append(val_f1)
 
-        for epoch in range(num_epochs):
-            print(f'\nEpoch {epoch + 1}/{num_epochs}')
-            print('-' * 50)
+    def save_best_model(self, val_metrics):
+        _, val_acc, _ = val_metrics
+        if val_acc > self.history['best_val_acc']:
+            self.history['best_val_acc'] = val_acc
+            self.best_model_state = self.model.state_dict().copy()
 
-            train_loss, train_acc, train_f1 = self.train_epoch(train_loader)
-            val_loss, val_acc, val_f1 = self.validate_epoch(val_loader)
+    def print_epoch_summary(self, train_metrics, val_metrics):
+        train_loss, train_acc, train_f1 = train_metrics
+        val_loss, val_acc, val_f1 = val_metrics
 
-            # Update history
-            self.history['train_losses'].append(train_loss)
-            self.history['val_losses'].append(val_loss)
-            self.history['train_accuracies'].append(train_acc)
-            self.history['val_accuracies'].append(val_acc)
-            self.history['train_f1_scores'].append(train_f1)
-            self.history['val_f1_scores'].append(val_f1)
-
-            # Save best model
-            if val_acc > self.history['best_val_acc']:
-                self.history['best_val_acc'] = val_acc
-                self.best_model_state = self.model.state_dict().copy()
-
-            # Step scheduler
-            self.scheduler.step()
-
-            # Print epoch results
-            print(f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, Train F1: {train_f1:.4f}')
-            print(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%, Val F1: {val_f1:.4f}')
-            print(f'Best Val Acc: {self.history["best_val_acc"]:.2f}%')
-
-        # Load best model
-        self.model.load_state_dict(self.best_model_state)
-
-        return self.model, self.history
+        print(f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, Train F1: {train_f1:.4f}')
+        print(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%, Val F1: {val_f1:.4f}')
+        print(f'Best Val Acc: {self.history["best_val_acc"]:.2f}%')

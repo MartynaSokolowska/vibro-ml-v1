@@ -40,7 +40,7 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
         temp_counts[temp] += 1
 
     config = load_config()
-    if config['training']['type'] == 'classification':
+    if config['model']['type'] == 'classification':
         print("Files per temperature:")
         for temp, count in sorted(temp_counts.items()):
             print(f"  {temp}°C: {count} files")
@@ -51,7 +51,7 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
         files,
         test_size=test_split,
         random_state=random_seed,
-        stratify=file_temperatures if config['training']['type'] == 'classification' else None
+        stratify=file_temperatures if config['model']['type'] == 'classification' else None
     )
 
     # Get temperatures for remaining files
@@ -62,7 +62,7 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
         train_val_files,
         test_size=val_split,  # This is now relative to train_val_files
         random_state=random_seed,
-        stratify=train_val_temperatures if config['training']['type'] == 'classification' else None
+        stratify=train_val_temperatures if config['model']['type'] == 'classification' else None
     )
 
     # Convert file lists to slice indices

@@ -1,64 +1,17 @@
-import torch
 import os
 
+import torch
+
 from data.data_manager import create_data_loaders
-from training import VibroNetRegressor
-from training.VibroNetClassifier import VibroNetClassifier
-from training.trainer import AudioClassificationTrainer
-from training.trainerRegression import AudioRegressionTrainer
+from training import VibroNet, AudioClassificationTrainer
+from training.trainer_regression import AudioRegressionTrainer
 from utils.config_manager import load_config
-from utils.evaluation import evaluate_model
-from utils.visualization import plot_training_history, plot_confusion_matrix
- 
-
-import matplotlib.pyplot as plt
-
-def evaluate_and_plot(model, data_loader, device):
-    model.eval()
-    predictions = []
-    targets = []
-
-    with torch.no_grad():
-        for data, target in data_loader:
-            data = data.to(device)
-            target = target.to(device).float().unsqueeze(1)
-            output = model(data)
-            predictions.extend(output.cpu().numpy().flatten())
-            targets.extend(target.cpu().numpy().flatten())
-
-    # MAE, MSE, RMSE
-    from sklearn.metrics import mean_absolute_error, mean_squared_error
-    import numpy as np
-
-    mae = mean_absolute_error(targets, predictions)
-    mse = mean_squared_error(targets, predictions)
-    rmse = np.sqrt(mse)
-
-    print(f"\n📊 Evaluation Metrics:")
-    print(f"MAE:  {mae:.4f}")
-    print(f"MSE:  {mse:.4f}")
-    print(f"RMSE: {rmse:.4f}")
-
-    # Przykładowe predykcje
-    print("\n🔍 Sample predictions:")
-    for i in range(min(10, len(predictions))):
-        print(f"Predicted: {predictions[i]:.2f}, Target: {targets[i]:.2f}")
-
-    # Wykres dopasowania
-    plt.figure(figsize=(6, 6))
-    plt.scatter(targets, predictions, alpha=0.6)
-    plt.plot([min(targets), max(targets)], [min(targets), max(targets)], 'r--', label="Ideal")
-    plt.xlabel("True Temperature")
-    plt.ylabel("Predicted Temperature")
-    plt.title("Model Fit: True vs Predicted")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+from utils.evaluation.evaluate_classification import evaluate_model
+from utils.evaluation.evaluate_regression import evaluate_and_plot
+from utils.visualization import plot_confusion_matrix
 
 
 def main():
-    """Main function"""
     config = load_config()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -66,22 +19,20 @@ def main():
 
     train_loader, val_loader, test_loader, dataset = create_data_loaders(config)
 
-    model = VibroNetRegressor(
-        # num_classes=config['model']['num_classes']
-    )
+    mode = config['model'].get('type', 'classification')
+    model = VibroNet(mode=mode, num_classes=config['model']['num_classes'])
 
-    trainer = AudioRegressionTrainer(
-        model=model,
-        config=config['training'],
-        device=device
-    )
+    if mode == 'regression':
+        trainer = AudioRegressionTrainer(model=model, config=config['training'], device=device)
+    else:
+        trainer = AudioClassificationTrainer(model=model, config=config['training'], device=device)
 
     print("Starting training...")
     trained_model, history = trainer.train(train_loader, val_loader)
 
-    # plot_training_history(history)
-    evaluate_and_plot(trained_model, val_loader, device='cuda')
-    return
+    if mode == 'regression':
+        evaluate_and_plot(trained_model, val_loader, device='cuda')
+        return
 
     print("Evaluating on test set...")
     test_accuracy, classification_rep, predictions, targets = evaluate_model(

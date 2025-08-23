@@ -137,7 +137,7 @@ class AudioTemperatureDataset(Dataset):
 
                     temp_step = (current_temp - next_temp) / len(group)
 
-                    print(f"\n[INTERPOLATION] Group from {current['temperature']}°C → {next_temp}°C over {len(group)} files")
+                    print(f"\n[INTERPOLATION] Group from {current['temperature']}°C → {next_temp}°C over {len(group)} files") # TODO: no interpolation for classification? or make it configurable
                     for idx, g in enumerate(group):
                         interpolated_temp = round(current['temperature'] - temp_step * idx, 3)
                         print(interpolated_temp, ",", end='')
@@ -319,7 +319,7 @@ class AudioTemperatureDataset(Dataset):
             spectrogram = self.transform(spectrogram)
 
         config = load_config()
-        if config['training']['type'] == 'classification':
+        if config['model']['type'] == 'classification':
             label = self.temp_to_label[slice_info['temperature_set']]
         else:
             label = float(slice_info['temperature'])
