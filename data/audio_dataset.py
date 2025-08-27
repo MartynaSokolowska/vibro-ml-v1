@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 from audiomentations import Compose, Gain, PitchShift
 from torchvision.transforms.functional import crop
 from random import choice
+from datetime import datetime, timedelta
 
 from utils.config_manager import load_config
 
@@ -64,6 +65,7 @@ class AudioTemperatureDataset(Dataset):
     def _create_slice_index(self):
         """Create index of all slices from all audio files"""
         slice_data = []
+        all_files = []
 
         # Get all audio files
         for root, dirs, files in os.walk(self.data_root):
@@ -78,19 +80,91 @@ class AudioTemperatureDataset(Dataset):
                             annotation_path = os.path.join(self.annotation_root, annotation_file)
 
                             if os.path.exists(annotation_path):
-                                # Get the number of slices for this file
-                                num_slices = self._count_slices(audio_path, annotation_path)
 
-                                # Add each slice to the index
-                                for slice_idx in range(num_slices):
-                                    slice_data.append({
-                                        'audio_path': audio_path,
-                                        'annotation_path': annotation_path,
-                                        'temperature': temp,
-                                        'slice_idx': slice_idx
-                                    })
+                                # Get the real temperature
+                                raw_temp_str = audio_file[:4].replace(',', '.')
+                                try:
+                                    true_temp = float(raw_temp_str)
+                                except ValueError:
+                                    print(f"Warning: Cannot parse temperature from filename '{audio_file}'")
+                                    continue
+
+                                try:
+                                    file_time = datetime.fromtimestamp(os.path.getmtime(audio_path))
+                                except Exception as e:
+                                    print(f"Error reading timestamp for {audio_path}: {e}")
+                                    continue
+
+                                all_files.append({
+                                    'audio_path': audio_path,
+                                    'annotation_path': annotation_path,
+                                    'temperature_set': temp,
+                                    'temperature': true_temp,
+                                    'slice_idx': 0,  # will expand later
+                                    'file_name': audio_file,
+                                })
+
+        def extract_datetime_from_filename(filename):
+            try:
+                parts = filename.split('_')
+                date_str = parts[-2]  # '2025-07-15'
+                time_str = parts[-1].split('.')[0:3]  # ['14', '02', '34']
+                dt_str = date_str + ' ' + ':'.join(time_str)
+                return datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S')
+            except Exception as e:
+                print(f"Could not parse datetime from {filename}: {e}")
+                return None
+
+        # Sort by time
+        all_files = sorted(all_files, key=lambda x: extract_datetime_from_filename(x['file_name']))
+
+        n = len(all_files)
+        i = 0
+        while i < n:
+            current = all_files[i]
+            group = [current]
+            j = i + 1
+
+            # Szukamy kolejnych plików z tą samą temperaturą
+            while j < n and all_files[j]['temperature'] == current['temperature']:
+                    group.append(all_files[j])
+                    j += 1
+            if j<n and all_files[j]['temperature'] < current['temperature']:
+                # znaleziono plik z inną temperaturą 
+                # obliczamy krok
+                    next_temp = all_files[j]['temperature']
+                    current_temp = current['temperature']
+
+                    temp_step = (current_temp - next_temp) / len(group)
+
+                    print(f"\n[INTERPOLATION] Group from {current['temperature']}°C → {next_temp}°C over {len(group)} files") # TODO: no interpolation for classification? or make it configurable
+                    for idx, g in enumerate(group):
+                        interpolated_temp = round(current['temperature'] - temp_step * idx, 3)
+                        print(interpolated_temp, ",", end='')
+                        num_slices = self._count_slices(g['audio_path'], g['annotation_path'])
+                        for slice_idx in range(num_slices):
+                            slice_data.append({
+                                'audio_path': g['audio_path'],
+                                'annotation_path': g['annotation_path'],
+                                'temperature_set': g['temperature_set'],
+                                'temperature': interpolated_temp,
+                                'slice_idx': slice_idx,  
+                            })            
+            else:
+                print(f"\n[NO MATCH] {current['file_name']} → no next file with different temperature")
+                num_slices = self._count_slices(current['audio_path'], current['annotation_path'])
+                for slice_idx in range(num_slices):
+                    slice_data.append({
+                        'audio_path': current['audio_path'],
+                        'annotation_path': current['annotation_path'],
+                        'temperature_set': current['temperature_set'],
+                        'temperature': current['temperature'],
+                        'slice_idx': slice_idx,
+                    })
+            i = j
 
         return slice_data
+
 
     def _load_annotation(self, annotation_path):
         """Load annotation file and extract start and end time"""
@@ -244,6 +318,10 @@ class AudioTemperatureDataset(Dataset):
         if self.transform:
             spectrogram = self.transform(spectrogram)
 
-        label = self.temp_to_label[slice_info['temperature']]
+        config = load_config()
+        if config['model']['type'] == 'classification':
+            label = self.temp_to_label[slice_info['temperature_set']]
+        else:
+            label = float(slice_info['temperature'])
 
         return spectrogram, label

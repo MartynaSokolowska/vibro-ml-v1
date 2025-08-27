@@ -1,16 +1,17 @@
-import torch
 import os
 
+import torch
+
 from data.data_manager import create_data_loaders
-from training.VibroNetClassifier import VibroNetClassifier
-from training.trainer import AudioTrainer
+from training import VibroNet, AudioClassificationTrainer
+from training.trainer_regression import AudioRegressionTrainer
 from utils.config_manager import load_config
-from utils.evaluation import evaluate_model
-from utils.visualization import plot_training_history, plot_confusion_matrix
+from utils.evaluation.evaluate_classification import evaluate_model
+from utils.evaluation.evaluate_regression import evaluate_and_plot
+from utils.visualization import plot_confusion_matrix
 
 
 def main():
-    """Main function"""
     config = load_config()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -18,20 +19,20 @@ def main():
 
     train_loader, val_loader, test_loader, dataset = create_data_loaders(config)
 
-    model = VibroNetClassifier(
-        num_classes=config['model']['num_classes']
-    )
+    mode = config['model'].get('type', 'classification')
+    model = VibroNet(mode=mode, num_classes=config['model']['num_classes'])
 
-    trainer = AudioTrainer(
-        model=model,
-        config=config['training'],
-        device=device
-    )
+    if mode == 'regression':
+        trainer = AudioRegressionTrainer(model=model, config=config['training'], device=device)
+    else:
+        trainer = AudioClassificationTrainer(model=model, config=config['training'], device=device)
 
     print("Starting training...")
     trained_model, history = trainer.train(train_loader, val_loader)
 
-    plot_training_history(history)
+    if mode == 'regression':
+        evaluate_and_plot(trained_model, val_loader, device='cuda')
+        return
 
     print("Evaluating on test set...")
     test_accuracy, classification_rep, predictions, targets = evaluate_model(

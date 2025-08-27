@@ -1,6 +1,7 @@
 """Training module for audio temperature classification"""
 
-from .VibroNetClassifier import VibroNetClassifier
-from .trainer import AudioTrainer
+from .VibroNet import VibroNet
+from .trainer_classification import AudioClassificationTrainer
+from .trainer_regression import AudioRegressionTrainer
 
-__all__ = ['VibroNet', 'AudioTrainer']
+__all__ = ['VibroNet']
