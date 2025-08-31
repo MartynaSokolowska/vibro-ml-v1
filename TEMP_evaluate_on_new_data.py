@@ -22,10 +22,7 @@ def load_trained_model(model_path, device):
 
 def create_new_data_loader(config):
     dataset = AudioTemperatureDataset(
-        data_root=config['data']['data_root'], 
-        annotation_root=config['data']['annotation_root'],
-        slice_length=config['data']['slice_length'],
-        sample_rate=config['data']['sample_rate'],
+        config=config,
         augment=False
     )
 

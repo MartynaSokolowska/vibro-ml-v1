@@ -4,4 +4,4 @@ from .VibroNet import VibroNet
 from .trainer_classification import AudioClassificationTrainer
 from .trainer_regression import AudioRegressionTrainer
 
-__all__ = ['VibroNet']
+__all__ = ['VibroNet', 'AudioClassificationTrainer', 'AudioRegressionTrainer']

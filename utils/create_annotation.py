@@ -1,7 +1,8 @@
-import os
 import json
-import yaml
 from pathlib import Path
+
+import yaml
+
 
 def load_config(config_path):
     with open(config_path, 'r') as f:
@@ -40,6 +41,6 @@ def generate_annotations(folder_root, sample_rate):
 
 config = load_config("config\\config.yaml")
 sample_rate = config["data"]["sample_rate"]
-data_root = "C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data" # config["data"]["data_root"]
+data_root = config["data"]["data_root"]
 
 generate_annotations(data_root, sample_rate)
