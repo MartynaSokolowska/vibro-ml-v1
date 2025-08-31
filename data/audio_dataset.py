@@ -8,6 +8,8 @@ from audiomentations import Compose, Gain, PitchShift
 from torchvision.transforms.functional import crop
 from random import choice
 from datetime import datetime, timedelta
+from scipy.signal import find_peaks
+import matplotlib.pyplot as plt
 
 from utils.config_manager import load_config
 
@@ -100,7 +102,7 @@ class AudioTemperatureDataset(Dataset):
                                     'annotation_path': annotation_path,
                                     'temperature_set': temp,
                                     'temperature': true_temp,
-                                    'slice_idx': 0,  # will expand later
+                                    'pulse_time': 0,  # will change later
                                     'file_name': audio_file,
                                 })
 
@@ -141,25 +143,28 @@ class AudioTemperatureDataset(Dataset):
                     for idx, g in enumerate(group):
                         interpolated_temp = round(current['temperature'] - temp_step * idx, 3)
                         print(interpolated_temp, ",", end='')
-                        num_slices = self._count_slices(g['audio_path'], g['annotation_path'])
+
+                        pulses = self._detect_pulses(g['audio_path'], g['annotation_path'])
+                        num_slices = len(pulses)
                         for slice_idx in range(num_slices):
                             slice_data.append({
                                 'audio_path': g['audio_path'],
                                 'annotation_path': g['annotation_path'],
                                 'temperature_set': g['temperature_set'],
                                 'temperature': interpolated_temp,
-                                'slice_idx': slice_idx,  
+                                'pulse_time': pulses[slice_idx],  
                             })            
             else:
                 print(f"\n[NO MATCH] {current['file_name']} → no next file with different temperature")
-                num_slices = self._count_slices(current['audio_path'], current['annotation_path'])
+                pulses = self._detect_pulses(current['audio_path'], current['annotation_path'])
+                num_slices = len(pulses)
                 for slice_idx in range(num_slices):
                     slice_data.append({
                         'audio_path': current['audio_path'],
                         'annotation_path': current['annotation_path'],
                         'temperature_set': current['temperature_set'],
                         'temperature': current['temperature'],
-                        'slice_idx': slice_idx,
+                        'pulse_time': pulses[slice_idx],
                     })
             i = j
 
@@ -183,15 +188,56 @@ class AudioTemperatureDataset(Dataset):
             print(f"Warning: Could not load annotation from {annotation_path}: {e}")
 
         return None, None
+    
+    def _detect_pulses(self, audio_path, annotation_path, threshold=0.5):
+        """ Detects pulses in foam """
+        start_time, end_time = self._load_annotation(annotation_path)
+        if start_time is None or end_time is None:
+            return []
+        
+        # Można zmienić frame i hop size albo sparametryzować
+        frame_size= int(0.05 * self.sample_rate)
+        hop_size= int(0.01 * self.sample_rate)
+
+        def compute_rms(waveform):
+            if waveform.shape[0] > 1:
+                x = waveform.mean(dim=0) 
+            else:
+                x = waveform.squeeze(0)   
+                    
+            if x.numel() < frame_size:
+                rms = torch.sqrt(torch.mean(x**2)).unsqueeze(0)
+                return rms
+
+            x_frames = x.unfold(0, frame_size, hop_size)
+            rms = torch.sqrt(torch.mean(x_frames**2, dim=1))
+            return rms
+            
+        info = torchaudio.info(audio_path)
+        sr = info.sample_rate
+        start_sample = int(start_time * sr)
+        num_samples = int((end_time - start_time) * sr)
+        waveform, sr = torchaudio.load(audio_path, frame_offset=start_sample, num_frames=num_samples)
+
+        rms = compute_rms(waveform)
+        rms = rms / rms.max()  
+        rms_np = rms.numpy()
+
+        peaks, _ = find_peaks(rms_np, height=threshold * rms_np.mean(), distance=5)
+        times = start_time + peaks * hop_size / sr
+
+        return times
 
     def _count_slices(self, audio_path, annotation_path):
+        # NOTE: Not used rn
         """Count how many slices can be extracted from this audio file"""
         try:
             # Load annotation
             start_time, end_time = self._load_annotation(annotation_path)
             if start_time is None or end_time is None:
                 return 0
-
+            
+            ''' Constant count
             # Calculate segment duration
             segment_duration = end_time - start_time
 
@@ -206,12 +252,17 @@ class AudioTemperatureDataset(Dataset):
                 slice_count += 1
 
             return max(1, slice_count)  # At least 1 slice even if segment is short
+            '''
+
+            # Cut by pulses
+            times = self.detect_pulses(audio_path, start_time, end_time)
+            return len(times)
 
         except Exception as e:
             print(f"Error counting slices for {audio_path}: {e}")
             return 1
 
-    def _extract_slice(self, audio_path, start_time, end_time, slice_idx):
+    def _extract_slice(self, audio_path, pulse_time):
         """Extract specific slice from the annotated segment"""
         try:
             waveform, sr = torchaudio.load(audio_path)
@@ -229,6 +280,10 @@ class AudioTemperatureDataset(Dataset):
         if waveform.shape[0] > 1:
             waveform = torch.mean(waveform, dim=0, keepdim=True)
 
+        slice_samples = int(self.slice_length * self.sample_rate)
+
+        '''
+        # Based on constant length
         # Extract the annotated segment first
         start_sample = int(start_time * self.sample_rate)
         end_sample = int(end_time * self.sample_rate)
@@ -239,7 +294,6 @@ class AudioTemperatureDataset(Dataset):
         annotated_segment = waveform[:, start_sample:end_sample]
 
         # Now extract the specific slice
-        slice_samples = int(self.slice_length * self.sample_rate)
         overlap_offset = int(slice_samples * (1 - self.overlap))
 
         slice_start = slice_idx * overlap_offset
@@ -255,6 +309,21 @@ class AudioTemperatureDataset(Dataset):
             if slice_audio.shape[1] < slice_samples:
                 padding = slice_samples - slice_audio.shape[1]
                 slice_audio = torch.nn.functional.pad(slice_audio, (0, padding))
+        '''
+        # Based on pulses
+        peak_sample = int(pulse_time * self.sample_rate)
+        start_sample = peak_sample - slice_samples // 2
+        end_sample = start_sample + slice_samples
+
+        start_sample = max(0, start_sample)
+        end_sample = min(waveform.shape[1], end_sample)
+
+        slice_audio = waveform[:, start_sample:end_sample]
+
+        # Padding
+        if slice_audio.shape[1] < slice_samples:
+            padding = slice_samples - slice_audio.shape[1]
+            slice_audio = torch.nn.functional.pad(slice_audio, (0, padding))
 
         return slice_audio
 
@@ -299,9 +368,7 @@ class AudioTemperatureDataset(Dataset):
         # Extract the specific slice
         audio_slice = self._extract_slice(
             slice_info['audio_path'],
-            start_time,
-            end_time,
-            slice_info['slice_idx']
+            slice_info['pulse_time']
         )
 
         if self.augment and torch.rand(1).item() < 0.5:
