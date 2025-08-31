@@ -17,32 +17,30 @@ from utils.config_manager import load_config
 class AudioTemperatureDataset(Dataset):
     """Dataset for audio temperature classification"""
 
-    def __init__(self, data_root, annotation_root, transform=None,
-                 slice_length=1.0, overlap=0.5, sample_rate=48000, augment=True):
+    def __init__(self, config, transform=None, augment=True):
         """
         Initialize dataset
 
         Args:
-            data_root: Root directory containing temperature folders
-            annotation_root: Directory containing JSON annotation files
+            config: loaded configuration dictionary
             transform: Optional transform to be applied to spectrograms
-            slice_length: Duration in seconds for each slice
-            overlap: Overlap ratio between slices (0.0 = no overlap, 0.5 = 50% overlap)
-            sample_rate: Expected sample rate of audio files
             augment: Whether to apply data augmentation
         """
-        self.data_root = data_root
-        self.annotation_root = annotation_root
+        self.data_root = config["data"]["data_root"]
+        self.annotation_root = config["data"]["annotation_root"]
         self.transform = transform
-        self.slice_length = slice_length
-        self.overlap = overlap
-        self.sample_rate = sample_rate
+        self.slice_length = config["data"]["slice_length"]
+        self.overlap = config["data"]["overlap"]
+        self.sample_rate = config["data"]["sample_rate"]
         self.augment = augment
 
-        # Temperature mapping
-        config = load_config()
-        self.temp_to_label = {temp: idx for idx, temp in enumerate(config["model"]["classes"])}
-        self.label_to_temp = {v: k for k, v in self.temp_to_label.items()}
+        self.mode = config["model"]["type"]
+        if self.mode not in ["classification", "regression"]:
+            raise ValueError(f"Incorrect model type: {self.mode}. Allowed: 'classification', 'regression'.")
+
+        if self.mode == "classification":
+            self.temp_to_label = {temp: idx for idx, temp in enumerate(config["model"]["classes"])}
+            self.label_to_temp = {v: k for k, v in self.temp_to_label.items()}
 
         self.slice_data = self._create_slice_index()
 
@@ -57,7 +55,6 @@ class AudioTemperatureDataset(Dataset):
 
         self.db_transform = T.AmplitudeToDB(top_db=80)
 
-        # Audio augmentation
         if self.augment:
             self.audio_augment = Compose([
                 Gain(min_gain_db=-2, max_gain_db=2, p=0.3),
@@ -69,10 +66,9 @@ class AudioTemperatureDataset(Dataset):
         slice_data = []
         all_files = []
 
-        # Get all audio files
         for root, dirs, files in os.walk(self.data_root):
             folder_name = os.path.basename(root)
-            if folder_name.isdigit():
+            if folder_name.isdigit():  # TODO: I have to work for other folder names and file structures :O
                 temp = int(folder_name)
                 if temp in self.temp_to_label:
                     for audio_file in files:
@@ -396,7 +392,7 @@ class AudioTemperatureDataset(Dataset):
             spectrogram = self.transform(spectrogram)
 
         config = load_config()
-        if config['model']['type'] == 'classification':
+        if self.mode == 'classification':
             label = self.temp_to_label[slice_info['temperature_set']]
         else:
             label = float(slice_info['temperature'])
