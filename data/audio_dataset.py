@@ -1,15 +1,13 @@
-import os
 import json
+import os
+from datetime import datetime
+
 import torch
 import torchaudio
 import torchaudio.transforms as T
-from torch.utils.data import Dataset
 from audiomentations import Compose, Gain, PitchShift
-from torchvision.transforms.functional import crop
-from random import choice
-from datetime import datetime, timedelta
 from scipy.signal import find_peaks
-import matplotlib.pyplot as plt
+from torch.utils.data import Dataset
 
 from utils.config_manager import load_config
 
@@ -67,40 +65,35 @@ class AudioTemperatureDataset(Dataset):
         all_files = []
 
         for root, dirs, files in os.walk(self.data_root):
-            folder_name = os.path.basename(root)
-            if folder_name.isdigit():  # TODO: I have to work for other folder names and file structures :O
-                temp = int(folder_name)
-                if temp in self.temp_to_label:
-                    for audio_file in files:
-                        if audio_file.lower().endswith('.processed.wav'):
-                            audio_path = os.path.join(root, audio_file)
-                            annotation_file = audio_file.replace('.processed.wav', '.json')
-                            annotation_path = os.path.join(self.annotation_root, annotation_file)
+            for audio_file in files:
+                if audio_file.lower().endswith('.processed.wav'):
+                    audio_path = os.path.join(root, audio_file)
+                    annotation_file = audio_file.replace('.processed.wav', '.json')
+                    annotation_path = os.path.join(self.annotation_root, annotation_file)
 
-                            if os.path.exists(annotation_path):
+                    if os.path.exists(annotation_path):
 
-                                # Get the real temperature
-                                raw_temp_str = audio_file[:4].replace(',', '.')
-                                try:
-                                    true_temp = float(raw_temp_str)
-                                except ValueError:
-                                    print(f"Warning: Cannot parse temperature from filename '{audio_file}'")
-                                    continue
+                        raw_temp_str = audio_file[:4].replace(',', '.')
+                        try:
+                            true_temp = float(raw_temp_str)
+                        except ValueError:
+                            print(f"Warning: Cannot parse temperature from filename '{audio_file}'")
+                            continue
 
-                                try:
-                                    file_time = datetime.fromtimestamp(os.path.getmtime(audio_path))
-                                except Exception as e:
-                                    print(f"Error reading timestamp for {audio_path}: {e}")
-                                    continue
+                        try:
+                            file_time = datetime.fromtimestamp(os.path.getmtime(audio_path))
+                        except Exception as e:
+                            print(f"Error reading timestamp for {audio_path}: {e}")
+                            continue
 
-                                all_files.append({
-                                    'audio_path': audio_path,
-                                    'annotation_path': annotation_path,
-                                    'temperature_set': temp,
-                                    'temperature': true_temp,
-                                    'pulse_time': 0,  # will change later
-                                    'file_name': audio_file,
-                                })
+                        all_files.append({
+                            'audio_path': audio_path,
+                            'annotation_path': annotation_path,
+                            'temperature_set': true_temp,
+                            'temperature': true_temp,
+                            'pulse_time': 0,  # will change later
+                            'file_name': audio_file,
+                        })
 
         def extract_datetime_from_filename(filename):
             try:
@@ -138,7 +131,7 @@ class AudioTemperatureDataset(Dataset):
                     print(f"\n[INTERPOLATION] Group from {current['temperature']}°C → {next_temp}°C over {len(group)} files") # TODO: no interpolation for classification? or make it configurable
                     for idx, g in enumerate(group):
                         interpolated_temp = round(current['temperature'] - temp_step * idx, 3)
-                        print(interpolated_temp, ",", end='')
+                        print(f"{interpolated_temp},", end=' ')
 
                         pulses = self._detect_pulses(g['audio_path'], g['annotation_path'])
                         num_slices = len(pulses)

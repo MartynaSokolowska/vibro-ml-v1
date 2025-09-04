@@ -138,21 +138,20 @@ def create_data_loaders(config):
         dataset,
         test_split=config['data']['test_split'],
         val_split=config['data']['val_split'],
-        random_seed=config['data']['random_seed']
+        random_seed=config['data']['random_seed'],
+        equalize_num_samples=config['data'].get('equalize_num_samples', True)
     )
 
-    # Create datasets with different augmentation settings
     train_dataset = AudioTemperatureDataset(
         config=config,
-        augment=True  # Augmentation for training
+        augment=True
     )
 
     val_test_dataset = AudioTemperatureDataset(
         config=config,
-        augment=False  # No augmentation for validation/test
+        augment=False
     )
 
-    # Create data loaders
     train_loader = DataLoader(
         Subset(train_dataset, train_indices),
         batch_size=config['training']['batch_size'],
