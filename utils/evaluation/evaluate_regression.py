@@ -1,5 +1,7 @@
+import numpy as np
 import torch
 from matplotlib import pyplot as plt
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 
 def evaluate_and_plot(model, data_loader, device):
@@ -14,10 +16,6 @@ def evaluate_and_plot(model, data_loader, device):
             output = model(data)
             predictions.extend(output.cpu().numpy().flatten())
             targets.extend(target.cpu().numpy().flatten())
-
-    # MAE, MSE, RMSE
-    from sklearn.metrics import mean_absolute_error, mean_squared_error
-    import numpy as np
 
     mae = mean_absolute_error(targets, predictions)
     mse = mean_squared_error(targets, predictions)
