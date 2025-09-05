@@ -18,7 +18,7 @@ def generate_annotations(folder_root, sample_rate):
         json_file = annotations_dir / f"{base_name}.json"
 
         # Approximate times
-        time_stamps = [3.0, 5.0]
+        time_stamps = [3.0, 4.7]
 
         audio_annotations = {}
         for i, t in enumerate(time_stamps, 1):
