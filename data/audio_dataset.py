@@ -226,6 +226,16 @@ class AudioTemperatureDataset(Dataset):
         peaks, _ = find_peaks(rms_np, height=threshold * rms_np.mean(), distance=5)
         times = start_time + peaks * hop_size / sr
 
+        ''' For visualisation
+        plt.figure(figsize=(12, 4))
+        plt.plot(rms.numpy(), label="RMS energy")
+        plt.plot(peaks, rms.numpy()[peaks], "rx", label="Foud pulses")
+        plt.legend()
+        plt.xlabel("Time")
+        plt.ylabel("Normalized energy")
+        plt.show()
+        '''
+
         return times
 
     def _count_slices(self, audio_path, annotation_path):
