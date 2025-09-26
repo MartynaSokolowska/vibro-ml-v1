@@ -89,4 +89,4 @@ def test_filters(path, filter_type="bandpass"):
 
     return audio_filtered
 
-test_filters("C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data\\35\\35.5_Foam_Speed-10_24g_quincke_stethescope_2025-07-08_20.03.35.processed.wav")
+# test_filters("C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data\\35\\35.5_Foam_Speed-10_24g_quincke_stethescope_2025-07-08_20.07.52.wav")
