@@ -140,7 +140,8 @@ class DenoiseTester:
         plt.tight_layout()
         plt.show()
 
-
+"""
 path = "C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data\\35\\35.5_Foam_Speed-10_24g_quincke_stethescope_2025-07-08_20.07.52.wav"
 tester = DenoiseTester(path, sample_rate=48000)
 tester.plot(method="savgol", start_sec=3, end_sec=4.7)
+"""
