@@ -3,12 +3,14 @@ import os
 from datetime import datetime
 
 import torch
+import numpy as np
 import torchaudio
 import torchaudio.transforms as T
 from audiomentations import Compose, Gain, PitchShift
 from scipy.signal import find_peaks
 from torch.utils.data import Dataset
 
+from preprocessing.preprocessing_pipeline import AudioPipeline
 from utils.config_manager import load_config
 
 
@@ -369,6 +371,11 @@ class AudioTemperatureDataset(Dataset):
             slice_info['audio_path'],
             slice_info['pulse_time']
         )
+
+        pipeline = AudioPipeline(audio_slice.squeeze(0).numpy(), self.sample_rate)
+        config = load_config()
+        processed_slice = pipeline.run_from_config(config["preprocessing"])
+        audio_slice = torch.from_numpy(processed_slice.astype(np.float32)).unsqueeze(0)
 
         if self.augment and torch.rand(1).item() < 0.5:
             audio_slice = self._apply_audio_augmentation(audio_slice)
