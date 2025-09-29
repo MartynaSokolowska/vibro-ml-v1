@@ -78,9 +78,9 @@ class AudioTemperatureDataset(Dataset):
                 temp = int(folder_name)
                 if temp in self.temp_to_label:
                     for audio_file in files:
-                        if audio_file.lower().endswith('.processed.wav'):
+                        if audio_file.lower().endswith('.wav') and not audio_file.lower().endswith('.processed.wav'):
                             audio_path = os.path.join(root, audio_file)
-                            annotation_file = audio_file.replace('.processed.wav', '.json')
+                            annotation_file = audio_file.replace('.wav', '.json')
                             annotation_path = os.path.join(self.annotation_root, annotation_file)
 
                             if os.path.exists(annotation_path):
