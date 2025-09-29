@@ -31,7 +31,7 @@ def main():
     trained_model, history = trainer.train(train_loader, val_loader)
 
     if mode == 'regression':
-        evaluate_and_plot(trained_model, val_loader, device='cuda')
+        evaluate_and_plot(trained_model, val_loader, device=device)
         return
 
     print("Evaluating on test set...")
