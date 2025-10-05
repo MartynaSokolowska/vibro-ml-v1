@@ -142,7 +142,8 @@ def create_data_loaders(config):
         dataset,
         test_split=config['data']['test_split'],
         val_split=config['data']['val_split'],
-        random_seed=config['data']['random_seed']
+        random_seed=config['data']['random_seed'],
+        equalize_num_samples=config['data']['equalized']
     )
 
     # Create datasets with different augmentation settings
