@@ -1,24 +1,25 @@
 data:
-  data_root: "C:\\Users\\Ania\\PycharmProjects\\vibro-ml-v1\\data_root"
-  annotation_root: "C:\\Users\\Ania\\PycharmProjects\\vibro-ml-v1\\data_root\\annotations"
+  data_root: "C:\\Users\\Ania\\PycharmProjects\\vibro-ml-v1\\data_root"  #"C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data"
+  annotation_root: "C:\\Users\\Ania\\PycharmProjects\\vibro-ml-v1\\data_root\\annotations"  #"C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data\\annotations"
   slice_length: 0.1 # seconds
   overlap: 0.5 # 0.5 for 50% overlap
   sample_rate: 48000
   test_split: 0.2
   val_split: 0.2
   random_seed: 42
+  equalized: False
   num_workers: 0
 
 model:
   pretrained: true
-  type: "classification"  # supports classification and regression
+  type: "regression"  # supports classification and regression
   # for classification
   num_classes: 6 # Q: Maybe can be read from classes?
   classes: [25, 30, 35, 40, 45, 50]
 
 training:
   batch_size: 16
-  num_epochs: 5
+  num_epochs: 50
   learning_rate: 0.001
   weight_decay: 0.0001
   scheduler_step_size: 15
@@ -30,3 +31,18 @@ augmentation:
   gain_range: [-5, 5]  # dB
   pitch_shift_range: [-3, 3]  # semitones
   time_stretch_factors: [0.8, 0.9, 1.0, 1.1, 1.2]
+
+preprocessing:
+  filters:
+    - type: "bandpass"
+      kwargs:
+        lowcut: 50
+        highcut: 8000
+        order: 5
+
+  denoising:
+    - method: "wavelet"
+      kwargs:
+        wavelet: "db4"
+        level: 3
+        threshold_factor: 0.05
