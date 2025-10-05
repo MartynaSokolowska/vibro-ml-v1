@@ -7,8 +7,9 @@ data:
   test_split: 0.2
   val_split: 0.2
   random_seed: 42
-  equalized: False
+  equalized: false
   num_workers: 0
+  should_interpolate: false # for regression only
 
 model:
   pretrained: true

@@ -10,3 +10,5 @@ torchaudio>=0.13.1
 torchvision>=0.14.1
 tqdm>=4.66.5
 PyWavelets>=1.4.1
+scipy~=1.15.3
+librosa~=0.10.2.post1

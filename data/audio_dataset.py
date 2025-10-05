@@ -1,15 +1,13 @@
-import json
 import os
-from datetime import datetime
 
-import torch
 import numpy as np
+import torch
 import torchaudio
 import torchaudio.transforms as T
 from audiomentations import Compose, Gain, PitchShift
-from scipy.signal import find_peaks
 from torch.utils.data import Dataset
 
+from data.dataset_utils import detect_pulses, interpolate_temperatures
 from preprocessing.preprocessing_pipeline import AudioPipeline
 from utils.config_manager import load_config
 
@@ -33,6 +31,7 @@ class AudioTemperatureDataset(Dataset):
         self.overlap = config["data"]["overlap"]
         self.sample_rate = config["data"]["sample_rate"]
         self.augment = augment
+        self.should_interpolate = config["data"].get("should_interpolate", False)
 
         self.mode = config["model"]["type"]
         if self.mode not in ["classification", "regression"]:
@@ -68,9 +67,9 @@ class AudioTemperatureDataset(Dataset):
 
         for root, dirs, files in os.walk(self.data_root):
             for audio_file in files:
-                if audio_file.lower().endswith('.processed.wav'):
+                if audio_file.lower().endswith('wav') and not audio_file.lower().endswith('.processed.wav'):
                     audio_path = os.path.join(root, audio_file)
-                    annotation_file = audio_file.replace('.processed.wav', '.json')
+                    annotation_file = audio_file.replace('.wav', '.json')
                     annotation_path = os.path.join(self.annotation_root, annotation_file)
 
                     if os.path.exists(annotation_path):
@@ -87,175 +86,25 @@ class AudioTemperatureDataset(Dataset):
                             'annotation_path': annotation_path,
                             'temperature_set': true_temp,
                             'temperature': true_temp,
-                            'pulse_time': 0,  # will change later
-                            'file_name': audio_file,
+                            'file_name': audio_file
                         })
 
-        def extract_datetime_from_filename(filename):
-            try:
-                parts = filename.split('_')
-                date_str = parts[-2]  # '2025-07-15'
-                time_str = parts[-1].split('.')[0:3]  # ['14', '02', '34']
-                dt_str = date_str + ' ' + ':'.join(time_str)
-                return datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S')
-            except Exception as e:
-                print(f"Could not parse datetime from {filename}: {e}")
-                return None
+        if self.should_interpolate:
+            interpolate_temperatures(all_files)
 
-        # Sort by time
-        all_files = sorted(all_files, key=lambda x: extract_datetime_from_filename(x['file_name']))
-
-        n = len(all_files)
-        i = 0
-        while i < n:
-            current = all_files[i]
-            group = [current]
-            j = i + 1
-
-            # Szukamy kolejnych plików z tą samą temperaturą
-            while j < n and all_files[j]['temperature'] == current['temperature']:
-                    group.append(all_files[j])
-                    j += 1
-            if j<n and all_files[j]['temperature'] < current['temperature']:
-                # znaleziono plik z inną temperaturą 
-                # obliczamy krok
-                    next_temp = all_files[j]['temperature']
-                    current_temp = current['temperature']
-
-                    temp_step = (current_temp - next_temp) / len(group)
-
-                    print(f"\n[INTERPOLATION] Group from {current['temperature']}°C → {next_temp}°C over {len(group)} files") # TODO: no interpolation for classification? or make it configurable
-                    for idx, g in enumerate(group):
-                        interpolated_temp = round(current['temperature'] - temp_step * idx, 3)
-                        print(f"{interpolated_temp},", end=' ')
-
-                        pulses = self._detect_pulses(g['audio_path'], g['annotation_path'])
-                        num_slices = len(pulses)
-                        for slice_idx in range(num_slices):
-                            slice_data.append({
-                                'audio_path': g['audio_path'],
-                                'annotation_path': g['annotation_path'],
-                                'temperature_set': g['temperature_set'],
-                                'temperature': interpolated_temp,
-                                'pulse_time': pulses[slice_idx],  
-                            })            
-            else:
-                print(f"\n[NO MATCH] {current['file_name']} → no next file with different temperature")
-                pulses = self._detect_pulses(current['audio_path'], current['annotation_path'])
-                num_slices = len(pulses)
-                for slice_idx in range(num_slices):
-                    slice_data.append({
-                        'audio_path': current['audio_path'],
-                        'annotation_path': current['annotation_path'],
-                        'temperature_set': current['temperature_set'],
-                        'temperature': current['temperature'],
-                        'pulse_time': pulses[slice_idx],
-                    })
-            i = j
+        for file_data in all_files:
+            pulses = detect_pulses(file_data['audio_path'], file_data['annotation_path'], self.sample_rate)
+            num_slices = len(pulses)
+            for slice_idx in range(num_slices):
+                slice_data.append({
+                    'audio_path': file_data['audio_path'],
+                    'annotation_path': file_data['annotation_path'],
+                    'temperature_set': file_data['temperature_set'],
+                    'temperature': file_data['temperature'],
+                    'pulse_time': pulses[slice_idx],
+                })
 
         return slice_data
-
-
-    def _load_annotation(self, annotation_path):
-        """Load annotation file and extract start and end time"""
-        try:
-            with open(annotation_path, 'r', encoding='utf-8') as f:
-                annotation = json.load(f)
-
-            audio_annotations = annotation.get('audio_annotations', {})
-
-            # Get start and end time (annotation "1" and "2")
-            if "1" in audio_annotations and "2" in audio_annotations:
-                start_time = audio_annotations["1"]["time"]
-                end_time = audio_annotations["2"]["time"]
-                return start_time, end_time
-        except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
-            print(f"Warning: Could not load annotation from {annotation_path}: {e}")
-
-        return None, None
-    
-    def _detect_pulses(self, audio_path, annotation_path, threshold=0.5):
-        """ Detects pulses in foam """
-        start_time, end_time = self._load_annotation(annotation_path)
-        if start_time is None or end_time is None:
-            return []
-        
-        # Można zmienić frame i hop size albo sparametryzować
-        frame_size= int(0.05 * self.sample_rate)
-        hop_size= int(0.01 * self.sample_rate)
-
-        def compute_rms(waveform):
-            if waveform.shape[0] > 1:
-                x = waveform.mean(dim=0) 
-            else:
-                x = waveform.squeeze(0)   
-                    
-            if x.numel() < frame_size:
-                rms = torch.sqrt(torch.mean(x**2)).unsqueeze(0)
-                return rms
-
-            x_frames = x.unfold(0, frame_size, hop_size)
-            rms = torch.sqrt(torch.mean(x_frames**2, dim=1))
-            return rms
-            
-        info = torchaudio.info(audio_path)
-        sr = info.sample_rate
-        start_sample = int(start_time * sr)
-        num_samples = int((end_time - start_time) * sr)
-        waveform, sr = torchaudio.load(audio_path, frame_offset=start_sample, num_frames=num_samples)
-
-        rms = compute_rms(waveform)
-        rms = rms / rms.max()  
-        rms_np = rms.numpy()
-
-        peaks, _ = find_peaks(rms_np, height=threshold * rms_np.mean(), distance=5)
-        times = start_time + peaks * hop_size / sr
-
-        ''' For visualisation
-        plt.figure(figsize=(12, 4))
-        plt.plot(rms.numpy(), label="RMS energy")
-        plt.plot(peaks, rms.numpy()[peaks], "rx", label="Foud pulses")
-        plt.legend()
-        plt.xlabel("Time")
-        plt.ylabel("Normalized energy")
-        plt.show()
-        '''
-
-        return times
-
-    def _count_slices(self, audio_path, annotation_path):
-        # NOTE: Not used rn
-        """Count how many slices can be extracted from this audio file"""
-        try:
-            # Load annotation
-            start_time, end_time = self._load_annotation(annotation_path)
-            if start_time is None or end_time is None:
-                return 0
-            
-            ''' Constant count
-            # Calculate segment duration
-            segment_duration = end_time - start_time
-
-            # Calculate slice parameters
-            slice_samples = int(self.slice_length * self.sample_rate)
-            overlap_offset = int(slice_samples * (1 - self.overlap))
-            segment_samples = int(segment_duration * self.sample_rate)
-
-            # Count possible slices
-            slice_count = 0
-            while segment_samples > slice_samples + slice_count * overlap_offset:
-                slice_count += 1
-
-            return max(1, slice_count)  # At least 1 slice even if segment is short
-            '''
-
-            # Cut by pulses
-            times = self.detect_pulses(audio_path, start_time, end_time)
-            return len(times)
-
-        except Exception as e:
-            print(f"Error counting slices for {audio_path}: {e}")
-            return 1
 
     def _extract_slice(self, audio_path, pulse_time):
         """Extract specific slice from the annotated segment"""
@@ -358,8 +207,6 @@ class AudioTemperatureDataset(Dataset):
     def __getitem__(self, idx):
         slice_info = self.slice_data[idx]
 
-        start_time, end_time = self._load_annotation(slice_info['annotation_path'])
-
         # Extract the specific slice
         audio_slice = self._extract_slice(
             slice_info['audio_path'],
@@ -385,7 +232,6 @@ class AudioTemperatureDataset(Dataset):
         if self.transform:
             spectrogram = self.transform(spectrogram)
 
-        config = load_config()
         if self.mode == 'classification':
             label = self.temp_to_label[slice_info['temperature_set']]
         else:
