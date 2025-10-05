@@ -82,12 +82,6 @@ class AudioTemperatureDataset(Dataset):
                             print(f"Warning: Cannot parse temperature from filename '{audio_file}'")
                             continue
 
-                        try:
-                            file_time = datetime.fromtimestamp(os.path.getmtime(audio_path))
-                        except Exception as e:
-                            print(f"Error reading timestamp for {audio_path}: {e}")
-                            continue
-
                         all_files.append({
                             'audio_path': audio_path,
                             'annotation_path': annotation_path,
