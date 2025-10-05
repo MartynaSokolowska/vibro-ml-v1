@@ -8,7 +8,7 @@ from utils.config_manager import load_config
 
 def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed=42, equalize_num_samples = True):
     """
-    Create train/val/test splits ensuring all slices from same file stay together
+    Create train/val/test splits ensuring all slices from one file stay together
 
     Args:
         dataset: AudioTemperatureDataset instance
@@ -19,7 +19,6 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
     Returns:
         train_indices, val_indices, test_indices: Lists of dataset indices
     """
-    # Group slices by their source audio file
     file_to_slices = defaultdict(list)
     file_to_temp = {}
 
@@ -128,10 +127,7 @@ def create_data_loaders(config):
     """Create train, validation, and test data loaders with file-based splitting"""
     # Create dataset to get the slice information
     dataset = AudioTemperatureDataset(
-        data_root=config['data']['data_root'],
-        annotation_root=config['data']['annotation_root'],
-        slice_length=config['data']['slice_length'],
-        sample_rate=config['data']['sample_rate'],
+        config=config,
         augment=False  # We'll handle augmentation per split
     )
 
@@ -146,24 +142,16 @@ def create_data_loaders(config):
         equalize_num_samples=config['data']['equalized']
     )
 
-    # Create datasets with different augmentation settings
     train_dataset = AudioTemperatureDataset(
-        data_root=config['data']['data_root'],
-        annotation_root=config['data']['annotation_root'],
-        slice_length=config['data']['slice_length'],
-        sample_rate=config['data']['sample_rate'],
-        augment=True  # Augmentation for training
+        config=config,
+        augment=True
     )
 
     val_test_dataset = AudioTemperatureDataset(
-        data_root=config['data']['data_root'],
-        annotation_root=config['data']['annotation_root'],
-        slice_length=config['data']['slice_length'],
-        sample_rate=config['data']['sample_rate'],
-        augment=False  # No augmentation for validation/test
+        config=config,
+        augment=False
     )
 
-    # Create data loaders
     train_loader = DataLoader(
         Subset(train_dataset, train_indices),
         batch_size=config['training']['batch_size'],

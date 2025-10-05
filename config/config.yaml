@@ -2,6 +2,7 @@ data:
   data_root: "C:\\Users\\Ania\\PycharmProjects\\vibro-ml-v1\\data_root"  #"C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data"
   annotation_root: "C:\\Users\\Ania\\PycharmProjects\\vibro-ml-v1\\data_root\\annotations"  #"C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data\\annotations"
   slice_length: 0.1 # seconds
+  overlap: 0.5 # 0.5 for 50% overlap
   sample_rate: 48000
   test_split: 0.2
   val_split: 0.2
