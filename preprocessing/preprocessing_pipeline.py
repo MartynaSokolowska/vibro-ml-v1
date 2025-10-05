@@ -6,9 +6,8 @@ from preprocessing.denoising import *
 
 
 class AudioPipeline:
-    def __init__(self, filepath):
-        self.filepath = filepath
-        self.signal, self.fs = librosa.load(filepath, sr=None)
+    def __init__(self, signal, sr):
+        self.signal, self.fs = signal, sr
         self.processed = None
 
     def apply_filter(self, filter_type="bandpass", **kwargs):
