@@ -7,7 +7,7 @@ import torchaudio.transforms as T
 from audiomentations import Compose, Gain, PitchShift
 from torch.utils.data import Dataset
 
-from data.dataset_utils import detect_pulses, interpolate_temperatures
+from data.dataset_utils import detect_pulses, get_temperature_sets, interpolate_temperatures
 from preprocessing.preprocessing_pipeline import AudioPipeline
 from utils.config_manager import load_config
 
@@ -32,6 +32,7 @@ class AudioTemperatureDataset(Dataset):
         self.sample_rate = config["data"]["sample_rate"]
         self.augment = augment
         self.should_interpolate = config["data"].get("should_interpolate", False)
+        self.classes = config["model"]["classes"]
 
         self.mode = config["model"]["type"]
         if self.mode not in ["classification", "regression"]:
@@ -91,6 +92,8 @@ class AudioTemperatureDataset(Dataset):
 
         if self.should_interpolate:
             interpolate_temperatures(all_files)
+
+        get_temperature_sets(all_files, classes=self.classes)
 
         for file_data in all_files:
             pulses = detect_pulses(file_data['audio_path'], file_data['annotation_path'], self.sample_rate)

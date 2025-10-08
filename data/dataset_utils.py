@@ -113,3 +113,13 @@ def detect_pulses(audio_path, annotation_path, sample_rate, threshold=0.5):
     '''
 
     return times
+
+def get_temperature_sets(all_files, classes):
+    classes_sorted = sorted(classes, reverse=True)
+    for file in all_files:
+        for temp_cls in classes_sorted:
+            if file['temperature'] >= temp_cls:
+                file['temperature_set'] = temp_cls
+                break
+    
+
