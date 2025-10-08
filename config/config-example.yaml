@@ -1,6 +1,6 @@
 data:
-  data_root: "C:\\Users\\Ania\\Documents\\Studia\\magisterka\\data\\nasze_07_2025"  #"C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data"
-  annotation_root: "C:\\Users\\Ania\\Documents\\Studia\\magisterka\\data\\nasze_07_2025\\annotations"  #"C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data\\annotations"
+  data_root: "C:\\path_to_data_root"
+  annotation_root: "C:\\path_to_annotation_root"
   slice_length: 0.1 # seconds
   overlap: 0.5 # 0.5 for 50% overlap
   sample_rate: 48000
@@ -15,7 +15,7 @@ model:
   pretrained: true
   type: "regression"  # supports classification and regression
   # for classification
-  num_classes: 6 # Q: Maybe can be read from classes?
+  num_classes: 6
   classes: [25, 30, 35, 40, 45, 50]
 
 training:
@@ -25,7 +25,7 @@ training:
   weight_decay: 0.0001
   scheduler_step_size: 15
   scheduler_gamma: 0.1
-  model_save_path: "models/audio_temperature_rtest.pth"
+  model_save_path: "models/model_save_name.pth"
 
 augmentation:
   enabled: true
