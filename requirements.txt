@@ -12,3 +12,4 @@ tqdm>=4.66.5
 PyWavelets>=1.4.1
 scipy~=1.15.3
 librosa~=0.10.2.post1
+git+https://github.com/laszukdawid/PyEMD

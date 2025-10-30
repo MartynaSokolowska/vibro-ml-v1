@@ -4,7 +4,7 @@ import pywt
 import numpy as np
 import librosa
 from scipy.signal import wiener, medfilt, savgol_filter
-#from PyEMD import EMD
+from PyEMD import EMD
 
 
 def wavelet_denoise(x, wavelet="db4", level=2, threshold_factor=0.04):
@@ -44,7 +44,7 @@ def median_filter(x, kernel_size=3):
 def savgol_denoise(x, window_length=51, polyorder=3):
     return savgol_filter(x, window_length=window_length, polyorder=polyorder)
 
-'''
+
 def emd_denoise_threshold(x, max_imf=5, energy_threshold=0.05):
     emd = EMD()
     imfs = emd(x, max_imf=max_imf)
@@ -61,7 +61,7 @@ def emd_denoise(x, max_imf=5, drop_imf=1):
     emd = EMD()
     imfs = emd(x, max_imf=max_imf)
     return np.sum(imfs[drop_imf:], axis=0)
-'''
+
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -102,10 +102,10 @@ class DenoiseTester:
         elif method == "savgol":
             return savgol_denoise(x, **kwargs)
         
-        #elif method == "emd":
-         #   return emd_denoise(x, **kwargs)
-        #elif method == "emd_threshold":
-         #   return emd_denoise_threshold(x, **kwargs)
+        elif method == "emd":
+            return emd_denoise(x, **kwargs)
+        elif method == "emd_threshold":
+           return emd_denoise_threshold(x, **kwargs)
         
         else:
             raise ValueError(f"Unknown method: {method}")
@@ -143,5 +143,4 @@ class DenoiseTester:
 """
 path = "C:\\Users\\sokol\\OneDrive\\Pulpit\\SEM_8\\magisterka\\new_data_1\\data\\35\\35.5_Foam_Speed-10_24g_quincke_stethescope_2025-07-08_20.07.52.wav"
 tester = DenoiseTester(path, sample_rate=48000)
-tester.plot(method="savgol", start_sec=3, end_sec=4.7)
-"""
+tester.plot(method="emd_threshold", start_sec=3, end_sec=4.7)
