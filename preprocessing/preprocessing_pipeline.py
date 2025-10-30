@@ -8,7 +8,7 @@ from preprocessing.denoising import *
 class AudioPipeline:
     def __init__(self, signal, sr):
         self.signal, self.fs = signal, sr
-        self.processed = None
+        self.processed = self.signal.copy()
 
     def apply_filter(self, filter_type="bandpass", **kwargs):
         if filter_type == "bandpass":
@@ -49,6 +49,13 @@ class AudioPipeline:
 
         for d in config.get("denoising", []):
             self.processed = self.apply_denoising(method=d["method"], **d.get("kwargs", {}))
+
+        norm_mode = config.get("normalize", None)
+
+        if norm_mode == "peak":
+            self.processed = (self.processed - np.mean(self.processed)) / (np.max(np.abs(self.processed)) + 1e-8)
+        elif norm_mode == "zscore":
+            self.processed = (self.processed - np.mean(self.processed)) / (np.std(self.processed) + 1e-8)
 
         return self.processed
 

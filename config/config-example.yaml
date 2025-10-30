@@ -34,6 +34,7 @@ augmentation:
   time_stretch_factors: [0.8, 0.9, 1.0, 1.1, 1.2]
 
 preprocessing:
+  normalize: "peak"
   filters:
     - type: "bandpass"
       kwargs:
