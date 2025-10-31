@@ -53,7 +53,8 @@ class AudioPipeline:
         norm_mode = config.get("normalize", None)
 
         if norm_mode == "peak":
-            self.processed = (self.processed - np.mean(self.processed)) / (np.max(np.abs(self.processed)) + 1e-8)
+            self.processed = self.processed - np.mean(self.processed)
+            self.processed = self.processed / (np.max(np.abs(self.processed)) + 1e-8)
         elif norm_mode == "zscore":
             self.processed = (self.processed - np.mean(self.processed)) / (np.std(self.processed) + 1e-8)
 
