@@ -15,6 +15,8 @@ from utils.config_manager import load_config
 class AudioTemperatureDataset(Dataset):
     """Dataset for audio temperature classification"""
 
+    FILE_ENDING = '.wav'
+
     def __init__(self, config, transform=None, augment=True):
         """
         Initialize dataset
@@ -68,7 +70,8 @@ class AudioTemperatureDataset(Dataset):
 
         for root, dirs, files in os.walk(self.data_root):
             for audio_file in files:
-                if audio_file.lower().endswith('wav') and not audio_file.lower().endswith('.processed.wav'):
+                if audio_file.lower().endswith(AudioTemperatureDataset.FILE_ENDING):
+                        # and not audio_file.lower().endswith(AudioTemperatureDataset.FILE_ENDING)):
                     audio_path = os.path.join(root, audio_file)
                     annotation_file = audio_file.replace('.wav', '.json')
                     annotation_path = os.path.join(self.annotation_root, annotation_file)

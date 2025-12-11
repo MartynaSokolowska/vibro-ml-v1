@@ -14,7 +14,7 @@ def generate_annotations(folder_root, sample_rate):
     annotations_dir = folder_root / "annotations"
     annotations_dir.mkdir(exist_ok=True)
 
-    for wav_file in folder_root.rglob("*.processed.wav"):
+    for wav_file in folder_root.rglob("*.wav"):
         base_name = wav_file.stem.replace(".processed", "")
         json_file = annotations_dir / f"{base_name}.json"
 
@@ -39,8 +39,9 @@ def generate_annotations(folder_root, sample_rate):
 
 # === USAGE ===
 
-config = load_config("config\\config.yaml")
-sample_rate = config["data"]["sample_rate"]
-data_root = config["data"]["data_root"]
+if __name__ == "__main__":
+    config = load_config("..\\config\\config.yaml")
+    sample_rate = config["data"]["sample_rate"]
+    data_root = config["data"]["data_root"]
 
-generate_annotations(data_root, sample_rate)
+    generate_annotations(data_root, sample_rate)

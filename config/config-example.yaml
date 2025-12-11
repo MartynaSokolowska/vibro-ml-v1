@@ -1,6 +1,7 @@
 data:
   data_root: "C:\\path_to_data_root"
   annotation_root: "C:\\path_to_annotation_root"
+  temperature_file: None
   slice_length: 0.1 # seconds
   overlap: 0.5 # 0.5 for 50% overlap
   sample_rate: 48000

@@ -125,7 +125,6 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
 
 def create_data_loaders(config):
     """Create train, validation, and test data loaders with file-based splitting"""
-    # Create dataset to get the slice information
     dataset = AudioTemperatureDataset(
         config=config,
         augment=False  # We'll handle augmentation per split
@@ -133,7 +132,6 @@ def create_data_loaders(config):
 
     print(f"Total samples: {len(dataset)}")
 
-    # Create file-based splits
     train_indices, val_indices, test_indices = create_file_based_splits(
         dataset,
         test_split=config['data']['test_split'],

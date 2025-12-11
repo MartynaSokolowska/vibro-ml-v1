@@ -68,20 +68,20 @@ def visualize_saliency_map(
     im1 = axes[0].imshow(original_spec, origin='lower', aspect='auto', cmap='magma')
     axes[0].set_title('Original spectrogram')
     axes[0].set_xlabel('Timeframe')
-    axes[0].set_ylabel('Frequency')
+    axes[0].set_ylabel('Mel Frequency')
     plt.colorbar(im1, ax=axes[0], format='%+2.0f dB')
 
     im2 = axes[1].imshow(saliency_map, origin='lower', aspect='auto', cmap='hot')
     axes[1].set_title(f'{method_name} Map')
     axes[1].set_xlabel('Timeframe')
-    axes[1].set_ylabel('Frequency')
+    axes[1].set_ylabel('Mel Frequency')
     plt.colorbar(im2, ax=axes[1])
 
     axes[2].imshow(original_spec, origin='lower', aspect='auto', cmap='magma', alpha=0.7)
     axes[2].imshow(saliency_map, origin='lower', aspect='auto', cmap='hot', alpha=0.4)
     axes[2].set_title(f'{method_name} Overlay')
     axes[2].set_xlabel('Timeframe')
-    axes[2].set_ylabel('Frequency')
+    axes[2].set_ylabel('Mel Frequency')
 
     if mode == "regression":
         fig.suptitle(f'Predicted: {output_value:.2f}°C | True: {true_value:.2f}°C',
