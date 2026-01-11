@@ -44,10 +44,21 @@ class AudioPipeline:
         return self.processed
 
     def run_from_config(self, config):
-        for f in config.get("filters", []):
+        if config is None:
+            config = {}
+
+        filters = config.get("filters", [])
+        if filters is None:
+            filters = []
+
+        for f in filters:
             self.processed = self.apply_filter(filter_type=f["type"], **f.get("kwargs", {}))
 
-        for d in config.get("denoising", []):
+        denoising = config.get("denoising", [])
+        if denoising is None:
+            denoising = []
+
+        for d in denoising:
             self.processed = self.apply_denoising(method=d["method"], **d.get("kwargs", {}))
 
         norm_mode = config.get("normalize", None)

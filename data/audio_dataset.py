@@ -16,6 +16,7 @@ class AudioTemperatureDataset(Dataset):
     """Dataset for audio temperature classification"""
 
     FILE_ENDING = '.wav'
+    NOISE_FILE_PREFIX = 'noise'
 
     def __init__(self, config, transform=None, augment=True):
         """
@@ -70,8 +71,8 @@ class AudioTemperatureDataset(Dataset):
 
         for root, dirs, files in os.walk(self.data_root):
             for audio_file in files:
-                if audio_file.lower().endswith(AudioTemperatureDataset.FILE_ENDING):
-                        # and not audio_file.lower().endswith(AudioTemperatureDataset.FILE_ENDING)):
+                if (audio_file.lower().endswith(AudioTemperatureDataset.FILE_ENDING)
+                        and not audio_file.lower().startswith(AudioTemperatureDataset.NOISE_FILE_PREFIX)):
                     audio_path = os.path.join(root, audio_file)
                     annotation_file = audio_file.replace('.wav', '.json')
                     annotation_path = os.path.join(self.annotation_root, annotation_file)
