@@ -118,8 +118,6 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
     assert len(train_file_set & test_file_set) == 0, "Files overlap between train and test!"
     assert len(val_file_set & test_file_set) == 0, "Files overlap between val and test!"
 
-    print("✓ No file overlap between splits - data leakage prevented!")
-
     return train_indices, val_indices, test_indices
 
 

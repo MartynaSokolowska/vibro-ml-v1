@@ -21,17 +21,16 @@ def evaluate_and_plot(model, data_loader, device):
     mse = mean_squared_error(targets, predictions)
     rmse = np.sqrt(mse)
 
-    print(f"\n📊 Evaluation Metrics:")
+    print(f"\nEvaluation Metrics:")
     print(f"MAE:  {mae:.4f}")
     print(f"MSE:  {mse:.4f}")
     print(f"RMSE: {rmse:.4f}")
 
-    # Przykładowe predykcje
-    print("\n🔍 Sample predictions:")
+    print("\nSample predictions:")
     for i in range(min(10, len(predictions))):
-        print(f"Predicted: {predictions[i]:.2f}, Target: {targets[i]:.2f}")
+        idx = np.random.randint(0, len(predictions))
+        print(f"Predicted: {predictions[idx]:.2f}, Target: {targets[idx]:.2f}")
 
-    # Wykres dopasowania
     plt.figure(figsize=(6, 6))
     plt.scatter(targets, predictions, alpha=0.6)
     plt.plot([min(targets), max(targets)], [min(targets), max(targets)], 'r--', label="Ideal")

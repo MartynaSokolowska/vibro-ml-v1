@@ -1,10 +1,9 @@
 """Signal denoising functions"""
+import librosa
 # NOTE: For consideration ...Deep Learning Denoising...
 import pywt
-import numpy as np
-import librosa
-from scipy.signal import wiener, medfilt, savgol_filter
 from PyEMD import EMD
+from scipy.signal import wiener, medfilt, savgol_filter
 
 
 def wavelet_denoise(x, wavelet="db4", level=2, threshold_factor=0.04):
