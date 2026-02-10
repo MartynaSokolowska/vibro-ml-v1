@@ -3,10 +3,10 @@ import sys
 
 import torch
 
-from data.data_manager import create_data_loaders
-from training import VibroNet
-from utils.config_manager import load_config
-from utils.saliency_maps.saliency_maps import batch_saliency_analysis, generate_saliency_for_sample
+from src.data import create_data_loaders
+from src.training import VibroNet
+from src.utils.config_manager import load_config
+from src.utils.saliency_maps.saliency_maps import batch_saliency_analysis, generate_saliency_for_sample
 
 
 def load_trained_model(model_path, device):
@@ -54,11 +54,9 @@ def main():
 
     dataloader = test_loader
 
-    print("\n" + "="*60)
     print("GENERATING SALIENCY MAPS")
-    print("="*60)
 
-    save_dir_vanilla = "saliency_results/vanilla"
+    save_dir_vanilla = "results/saliency/vanilla"
     batch_saliency_analysis(
         model=model,
         dataloader=dataloader,
@@ -75,7 +73,7 @@ def main():
         input_tensor=input_tensor,
         true_value=true_value,
         mode=mode,
-        save_path="saliency_results/single_sample_vanilla.png"
+        save_path="results/saliency/single_sample_vanilla.png"
     )
 
 

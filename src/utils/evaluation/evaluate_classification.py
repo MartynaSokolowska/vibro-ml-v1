@@ -1,7 +1,7 @@
 import torch
 from sklearn.metrics import accuracy_score, classification_report
-from training.VibroNet import VibroNet
-from utils.config_manager import load_config
+from src.training.VibroNet import VibroNet
+from src.utils.config_manager import load_config
 
 
 def evaluate_model(model, test_loader, device='cuda'):

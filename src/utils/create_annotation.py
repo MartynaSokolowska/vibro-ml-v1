@@ -40,7 +40,7 @@ def generate_annotations(folder_root, sample_rate):
 # === USAGE ===
 
 if __name__ == "__main__":
-    config = load_config("..\\config\\config.yaml")
+    config = load_config("../../config/config.yaml")
     sample_rate = config["data"]["sample_rate"]
     data_root = config["data"]["data_root"]
 

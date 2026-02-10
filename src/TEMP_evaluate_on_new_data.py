@@ -2,12 +2,10 @@ import torch
 from torch.utils.data import DataLoader
 import os
 
-from data.audio_dataset import AudioTemperatureDataset
-from training.VibroNet import VibroNet
-from utils.evaluation.evaluate_classification import evaluate_model
-from utils.config_manager import load_config
-from utils.visualization import plot_confusion_matrix
-from utils.evaluation.evaluate_regression import evaluate_and_plot
+from src.data.audio_dataset import AudioTemperatureDataset
+from src.training.VibroNet import VibroNet
+from src.utils.config_manager import load_config
+from src.utils.evaluation.evaluate_regression import evaluate_and_plot
 
 """
 

@@ -3,7 +3,7 @@ import torch.nn as nn
 from sklearn.metrics import f1_score
 from tqdm import tqdm
 
-from training.base_trainer import BaseTrainer
+from src.training.base_trainer import BaseTrainer
 
 
 class AudioClassificationTrainer(BaseTrainer):

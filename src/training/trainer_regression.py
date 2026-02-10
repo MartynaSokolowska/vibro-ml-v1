@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 
-from training.base_trainer import BaseTrainer
+from src.training.base_trainer import BaseTrainer
 
 
 class AudioRegressionTrainer(BaseTrainer):

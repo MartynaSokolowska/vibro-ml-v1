@@ -7,9 +7,9 @@ import torchaudio.transforms as T
 from audiomentations import Compose, Gain, PitchShift
 from torch.utils.data import Dataset
 
-from data.dataset_utils import detect_pulses, get_temperature_sets, interpolate_temperatures
-from preprocessing.preprocessing_pipeline import AudioPipeline
-from utils.config_manager import load_config
+from src.data.dataset_utils import detect_pulses, get_temperature_sets, interpolate_temperatures
+from src.preprocessing.preprocessing_pipeline import AudioPipeline
+from src.utils.config_manager import load_config
 
 
 class AudioTemperatureDataset(Dataset):

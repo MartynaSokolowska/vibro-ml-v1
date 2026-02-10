@@ -17,12 +17,20 @@ def plot_training_history(history):
     ax1.legend()
     ax1.grid(True)
 
-    # Plot accuracies
-    ax2.plot(history['train_accuracies'], label='Train Accuracy')
-    ax2.plot(history['val_accuracies'], label='Validation Accuracy')
-    ax2.set_title('Training and Validation Accuracy')
-    ax2.set_xlabel('Epoch')
-    ax2.set_ylabel('Accuracy (%)')
+    # Plot accuracies (classification) or MAE (regression)
+    if 'train_accuracies' in history:
+        ax2.plot(history['train_accuracies'], label='Train Accuracy')
+        ax2.plot(history['val_accuracies'], label='Validation Accuracy')
+        ax2.set_title('Training and Validation Accuracy')
+        ax2.set_xlabel('Epoch')
+        ax2.set_ylabel('Accuracy (%)')
+    elif 'train_mae' in history:
+        ax2.plot(history['train_mae'], label='Train MAE')
+        ax2.plot(history['val_mae'], label='Validation MAE')
+        ax2.set_title('Training and Validation MAE')
+        ax2.set_xlabel('Epoch')
+        ax2.set_ylabel('MAE')
+
     ax2.legend()
     ax2.grid(True)
 

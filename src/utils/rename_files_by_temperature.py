@@ -2,7 +2,7 @@ import os
 import re
 from datetime import datetime
 
-from utils.config_manager import load_config
+from src.utils.config_manager import load_config
 
 
 def parse_timestamp_from_filename(filename):

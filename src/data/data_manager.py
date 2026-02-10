@@ -2,8 +2,8 @@ import random
 from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
 from collections import defaultdict
-from data.audio_dataset import AudioTemperatureDataset
-from utils.config_manager import load_config
+from src.data.audio_dataset import AudioTemperatureDataset
+from src.utils.config_manager import load_config
 
 
 def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed=42, equalize_num_samples = True):
@@ -27,13 +27,11 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
         file_to_slices[file_path].append(idx)
         file_to_temp[file_path] = slice_info['temperature_set']
 
-    # Get unique files and their temperatures
     files = list(file_to_slices.keys())
     file_temperatures = [file_to_temp[f] for f in files]
 
     print(f"Total unique audio files: {len(files)}")
 
-    # Count files per temperature
     temp_counts = defaultdict(int)
     for temp in file_temperatures:
         temp_counts[temp] += 1
@@ -45,7 +43,6 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
             print(f"  {temp}°C: {count} files")
         
 
-    # First split: separate test files
     train_val_files, test_files = train_test_split(
         files,
         test_size=test_split,
@@ -109,7 +106,6 @@ def create_file_based_splits(dataset, test_split=0.2, val_split=0.2, random_seed
     print(f"  Val files: {len(val_files)} -> {len(val_indices)} slices")
     print(f"  Test files: {len(test_files)} -> {len(test_indices)} slices")
 
-    # Verify no file appears in multiple splits
     train_file_set = set(train_files)
     val_file_set = set(val_files)
     test_file_set = set(test_files)
@@ -125,7 +121,7 @@ def create_data_loaders(config):
     """Create train, validation, and test data loaders with file-based splitting"""
     dataset = AudioTemperatureDataset(
         config=config,
-        augment=False  # We'll handle augmentation per split
+        augment=False
     )
 
     print(f"Total samples: {len(dataset)}")

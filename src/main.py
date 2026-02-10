@@ -2,13 +2,13 @@ import os
 
 import torch
 
-from data.data_manager import create_data_loaders
-from training import VibroNet, AudioClassificationTrainer
-from training.trainer_regression import AudioRegressionTrainer
-from utils.config_manager import load_config
-from utils.evaluation.evaluate_classification import evaluate_model
-from utils.evaluation.evaluate_regression import evaluate_and_plot
-from utils.visualization import plot_confusion_matrix
+from src.data import create_data_loaders
+from src.training import VibroNet, AudioClassificationTrainer
+from src.training import AudioRegressionTrainer
+from src.utils.config_manager import load_config
+from src.utils.evaluation.evaluate_classification import evaluate_model
+from src.utils.evaluation.evaluate_regression import evaluate_and_plot
+from src.utils.visualization import plot_confusion_matrix, plot_training_history
 
 
 def main():
@@ -32,6 +32,9 @@ def main():
 
     print("Starting training...")
     trained_model, history = trainer.train(train_loader, val_loader)
+
+    print("\nPlotting training history...")
+    plot_training_history(history)
 
     if mode == 'regression':
         evaluate_and_plot(trained_model, val_loader, device=device)
