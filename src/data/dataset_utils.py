@@ -1,8 +1,10 @@
 import json
 from datetime import datetime
 
+import numpy as np
 import torch
 import torchaudio
+from scipy.ndimage import uniform_filter1d
 from scipy.signal import find_peaks
 
 
@@ -65,8 +67,19 @@ def interpolate_temperatures(all_files):
             print(f"\n[NO MATCH] {current['file_name']} → no next file with different temperature")
         i = j
 
-def detect_pulses(audio_path, annotation_path, sample_rate, threshold=0.5):
-    """ Detects pulses in foam """
+def detect_pulses(audio_path, annotation_path, sample_rate, base_threshold=0,
+                  smooth_win=5, local_win=50, min_distance_s=0.1):
+    """
+    Detects pulses in a signal using energy envelope and adaptive thresholding.
+    
+    Steps:
+      1. Remove mean (DC offset)
+      2. Take absolute value
+      3. Compute RMS-like energy
+      4. Smooth with moving average
+      5. Adaptive thresholding (local + std-based)
+      6. Enforce minimum spacing between detected pulses
+    """
     start_time, end_time = load_annotation(annotation_path)
     if start_time is None or end_time is None:
         return []
@@ -75,19 +88,30 @@ def detect_pulses(audio_path, annotation_path, sample_rate, threshold=0.5):
     frame_size = int(0.05 * sample_rate)
     hop_size = int(0.01 * sample_rate)
 
-    def compute_rms(waveform):
+    def compute_energy_envelope(waveform):
         if waveform.shape[0] > 1:
             x = waveform.mean(dim=0)
         else:
             x = waveform.squeeze(0)
 
-        if x.numel() < frame_size:
-            rms = torch.sqrt(torch.mean(x ** 2)).unsqueeze(0)
-            return rms
+        x = x - x.mean()
+        x = x.abs()
 
-        x_frames = x.unfold(0, frame_size, hop_size)
-        rms = torch.sqrt(torch.mean(x_frames ** 2, dim=1))
-        return rms
+        if x.numel() < frame_size:
+            energy = torch.sqrt(torch.mean(x ** 2)).unsqueeze(0)
+        else:
+            x_frames = x.unfold(0, frame_size, hop_size)
+            energy = torch.sqrt(torch.mean(x_frames ** 2, dim=1))
+
+        kernel = torch.ones(smooth_win) / smooth_win
+        energy_smooth = torch.nn.functional.conv1d(
+            energy.unsqueeze(0).unsqueeze(0),
+            kernel.unsqueeze(0).unsqueeze(0),
+            padding='same'
+        ).squeeze()
+
+        energy_smooth = energy_smooth / energy_smooth.max()
+        return energy_smooth
 
     info = torchaudio.info(audio_path)
     sr = info.sample_rate
@@ -95,24 +119,35 @@ def detect_pulses(audio_path, annotation_path, sample_rate, threshold=0.5):
     num_samples = int((end_time - start_time) * sr)
     waveform, sr = torchaudio.load(audio_path, frame_offset=start_sample, num_frames=num_samples)
 
-    rms = compute_rms(waveform)
-    rms = rms / rms.max()
-    rms_np = rms.numpy()
+    energy = compute_energy_envelope(waveform)
+    energy_np = energy.numpy()
+    energy_np = np.asarray(energy_np).reshape(-1)
 
-    peaks, _ = find_peaks(rms_np, height=threshold * rms_np.mean(), distance=5)
+    local_mean = uniform_filter1d(energy_np, size=local_win)
+    adaptive_threshold = local_mean + base_threshold * energy_np.std()
+
+    min_distance_frames = int(min_distance_s * sample_rate / hop_size)
+
+    peaks, _ = find_peaks(energy_np, height=adaptive_threshold, distance=min_distance_frames)
     times = start_time + peaks * hop_size / sr
 
-    ''' For visualisation
-    plt.figure(figsize=(12, 4))
-    plt.plot(rms.numpy(), label="RMS energy")
-    plt.plot(peaks, rms.numpy()[peaks], "rx", label="Foud pulses")
-    plt.legend()
-    plt.xlabel("Time")
+    # --- Wizualizacja ---
+    """
+    plt.figure(figsize=(12, 5))
+    plt.plot(energy_np, label="Smoothed Energy", alpha=0.8)
+    plt.plot(local_mean, label="Local Mean", alpha=0.5)
+    plt.plot(adaptive_threshold, label="Adaptive Threshold", linestyle="--", alpha=0.7)
+    plt.plot(peaks, energy_np[peaks], "rx", label="Detected Pulses")
+    plt.xlabel("Frame index")
     plt.ylabel("Normalized energy")
+    plt.legend()
+    plt.title("Adaptive Pulse Detection")
+    plt.tight_layout()
     plt.show()
-    '''
+    """
 
     return times
+
 
 def get_temperature_sets(all_files, classes):
     classes_sorted = sorted(classes, reverse=True)
