@@ -76,9 +76,9 @@ def extract_fft_features(signal, sample_rate, band_width=100, show_bands=True):
         for start in range(0, 35000, band_width):
             end = start + band_width
             features[f"{start}-{end}Hz_energy"] = np.sum(mag[start:end]**2)
-    features["fft_energy_low"] = np.sum(mag[:2000]**2)
-    features["fft_energy_mid"] = np.sum(mag[2000:5000]**2)
-    features["fft_energy_high"] = np.sum(mag[5000:]**2)
+    features["fft_energy_low"] = np.sum(mag[:500]**2)
+    features["fft_energy_mid"] = np.sum(mag[500:2000]**2)
+    features["fft_energy_high"] = np.sum(mag[2000:]**2)
 
     return features
 
