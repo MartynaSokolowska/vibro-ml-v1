@@ -58,7 +58,14 @@ def emd_denoise_threshold(x, max_imf=5, energy_threshold=0.05):
 
 def emd_denoise(x, max_imf=5, drop_imf=1):
     emd = EMD()
+    emd.MAX_ITERATION = 200
+    emd.FIXE_H = 5       
+
     imfs = emd(x, max_imf=max_imf)
+
+    if imfs.size == 0 or imfs.shape[0] <= drop_imf:
+        return x
+
     return np.sum(imfs[drop_imf:], axis=0)
 
 

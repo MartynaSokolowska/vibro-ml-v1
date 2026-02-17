@@ -47,7 +47,7 @@ def load_file(audio_path, sample_rate, normalize=False):
 
 def load_segment(audio_path, annotation_path, sample_rate, normalize=False):
     signal = load_file(audio_path, sample_rate, normalize=normalize)
-    if signal is None:
+    if signal is None or len(signal) == 0:
         return None
 
     with open(annotation_path, 'r') as f:
