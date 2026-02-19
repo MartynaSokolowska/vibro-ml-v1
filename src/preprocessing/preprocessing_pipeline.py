@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from src.preprocessing.denoising import wavelet_denoise, spectral_subtraction, wiener_filter, median_filter, \
-    savgol_denoise
+    savgol_denoise, emd_denoise
 from src.preprocessing.filters import bandpass_filter, notch_filter, highpass_filter, lowpass_filter
 
 
@@ -30,6 +30,10 @@ class AudioPipeline:
         else:
             x = self.processed
 
+        if method in ["raw", None, "none"]:
+            self.processed = x
+            return self.processed
+
         if method == "wavelet":
             self.processed = wavelet_denoise(x, **kwargs)
         elif method == "spectral":
@@ -40,6 +44,8 @@ class AudioPipeline:
             self.processed = median_filter(x, **kwargs)
         elif method == "savgol":
             self.processed = savgol_denoise(x, **kwargs)
+        elif method == "emd":
+            self.processed = emd_denoise(x, **kwargs)
         else:
             raise ValueError(f"Unknown denoising method: {method}")
         return self.processed
