@@ -79,6 +79,10 @@ class AudioTemperatureDataset(Dataset):
 
                     if os.path.exists(annotation_path):
 
+                        if not self._is_valid_audio_file(audio_path):
+                            print(f"Warning: Invalid audio file '{audio_path}' - skipping")
+                            continue
+
                         raw_temp_str = audio_file[:4].replace(',', '.')
                         try:
                             true_temp = float(raw_temp_str)
@@ -122,12 +126,10 @@ class AudioTemperatureDataset(Dataset):
             waveform = torch.zeros(1, int(self.slice_length * self.sample_rate))
             sr = self.sample_rate
 
-        # Resample if necessary
         if sr != self.sample_rate:
             resampler = T.Resample(sr, self.sample_rate)
             waveform = resampler(waveform)
 
-        # Convert to mono if stereo
         if waveform.shape[0] > 1:
             waveform = torch.mean(waveform, dim=0, keepdim=True)
 
@@ -177,6 +179,24 @@ class AudioTemperatureDataset(Dataset):
             slice_audio = torch.nn.functional.pad(slice_audio, (0, padding))
 
         return slice_audio
+
+    def _is_valid_audio_file(self, audio_path: str) -> bool:
+        """
+        Returns false if the audio file is invalid (e.g., cannot be loaded, has zero length, or is silent),
+        otherwise true.
+        """
+        try:
+            waveform, _sr = torchaudio.load(audio_path)
+        except Exception:
+            return False
+
+        if waveform.numel() == 0 or waveform.shape[-1] == 0:
+            return False
+
+        if waveform.abs().mean().item() < 1e-5:
+            return False
+
+        return True
 
     def _apply_audio_augmentation(self, audio_slice):
         """Apply audio augmentation to the audio slice"""
