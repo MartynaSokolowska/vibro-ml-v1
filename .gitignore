@@ -175,3 +175,10 @@ cython_debug/
 
 #config
 config/config.yaml
+
+# IntelliJ / PyCharm project folder
+.idea/
+
+# Generated files
+*.png 
+*.pth
