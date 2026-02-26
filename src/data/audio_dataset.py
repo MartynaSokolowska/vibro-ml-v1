@@ -213,20 +213,14 @@ class AudioTemperatureDataset(Dataset):
         return spec.squeeze(0)
 
     def _apply_spectrogram_augmentation(self, spectrogram):
-        # TODO: Ogarnąć te wymiarowości, czy to błąd konkretnego pliku?
-        if spectrogram.dim() == 2:
-            spectrogram = spectrogram.unsqueeze(0)
-        elif spectrogram.dim() == 1:
-            spectrogram = spectrogram.unsqueeze(0).unsqueeze(0)
-        else:
+        if spectrogram.dim() != 2:
             raise ValueError(f"Unexpected spectrogram shape: {spectrogram.shape}")
-        
-        if torch.rand(1).item() < 0.3:
-            spectrogram = T.TimeMasking(time_mask_param=25)(spectrogram)
-        if torch.rand(1).item() < 0.3:
-            spectrogram = T.FrequencyMasking(freq_mask_param=10)(spectrogram)
-        return spectrogram.squeeze(0)
 
+        if torch.rand(1).item() < 0.4:
+            noise = torch.randn_like(spectrogram) * 0.5
+            spectrogram = spectrogram + noise
+
+        return spectrogram
 
     def __len__(self):
         return len(self.slice_data)
