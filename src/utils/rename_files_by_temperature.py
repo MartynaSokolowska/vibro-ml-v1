@@ -167,7 +167,7 @@ def rename_files_with_temperatures(audio_directory, temperature_file_path, dry_r
 
 
 if __name__ == "__main__":
-    config = load_config("..\\config\\config.yaml")
+    config = load_config()
     audio_directory = config["data"]["data_root"]
     temperature_file_path = config["data"]["temperature_file"]
     rename_files_with_temperatures(audio_directory, temperature_file_path, dry_run=False)
