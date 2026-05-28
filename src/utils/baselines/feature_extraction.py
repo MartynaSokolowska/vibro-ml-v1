@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from scipy import stats
 from scipy.signal import find_peaks
+from scipy.stats import gmean
 
 
 def extract_simple_features(data_loader):
@@ -12,19 +13,12 @@ def extract_simple_features(data_loader):
     labels_list = []
     for spectrograms, labels in data_loader:
         for spec, label in zip(spectrograms, labels):
-            spec_np = spec.cpu().numpy()
-            features = {
-                'mean': np.mean(spec_np),
-                'std': np.std(spec_np),
-                'max': np.max(spec_np),
-                'min': np.min(spec_np),
-                'median': np.median(spec_np),
-                'q25': np.percentile(spec_np, 25),
-                'q75': np.percentile(spec_np, 75),
-                'energy': np.sum(spec_np ** 2),
-                'rms': np.sqrt(np.mean(spec_np ** 2)),
-                'skewness': stats.skew(spec_np.flatten()),
-                'kurtosis': stats.kurtosis(spec_np.flatten())}
+            if isinstance(spec, torch.Tensor):
+                spec_np = spec[0].cpu().numpy() if spec.ndim == 3 else spec.cpu().numpy()
+            else:
+                spec_np = spec
+
+            features = extract_simple_features_from_spec(spec_np)
             features_list.append(list(features.values()))
             labels_list.append(label.cpu().numpy() if isinstance(label, torch.Tensor) else label)
     return np.array(features_list), np.array(labels_list)
@@ -44,31 +38,113 @@ def extract_simple_features_from_indices(base_dataset, indices):
     for idx in indices:
         spec, label = base_dataset[idx]
 
-        # spec shape is usually (3, H, W); use only one channel because all 3 are duplicates
         if isinstance(spec, torch.Tensor):
             spec_np = spec[0].cpu().numpy() if spec.ndim == 3 else spec.cpu().numpy()
         else:
             spec_np = spec
 
-        features = {
-            'mean': np.mean(spec_np),
-            'std': np.std(spec_np),
-            'max': np.max(spec_np),
-            'min': np.min(spec_np),
-            'median': np.median(spec_np),
-            'q25': np.percentile(spec_np, 25),
-            'q75': np.percentile(spec_np, 75),
-            'energy': np.sum(spec_np ** 2),
-            'rms': np.sqrt(np.mean(spec_np ** 2)),
-            'skewness': stats.skew(spec_np.flatten()),
-            'kurtosis': stats.kurtosis(spec_np.flatten())
-        }
-
+        features = extract_simple_features_from_spec(spec_np)
         features_list.append(list(features.values()))
         labels_list.append(label.item() if isinstance(label, torch.Tensor) else float(label))
         groups_list.append(base_dataset.slice_data[idx]['audio_path'])  # group by source file
 
     return np.array(features_list), np.array(labels_list), np.array(groups_list)
+
+
+def extract_features(data_loader):
+    """Extract both simple and advanced features"""
+    features_list = []
+    labels_list = []
+
+    for spectrograms, labels in data_loader:
+        for spec, label in zip(spectrograms, labels):
+
+            if isinstance(spec, torch.Tensor):
+                spec_np = spec[0].cpu().numpy() if spec.ndim == 3 else spec.cpu().numpy()
+            else:
+                spec_np = spec
+
+            all_features = {}
+
+            all_features.update(extract_simple_features_from_spec(spec_np))
+            all_features.update(extract_bandwise_energy(spec_np, num_bands=8))
+            all_features.update(extract_spectral_features(spec_np))
+            all_features.update(extract_framewise_stats(spec_np))
+            all_features.update(extract_delta_features(spec_np))
+            all_features.update(extract_peak_features(spec_np))
+            all_features.update(extract_logmel_features(spec_np))
+
+            features_list.append(list(all_features.values()))
+            labels_list.append(label.cpu().numpy() if isinstance(label, torch.Tensor) else label)
+
+    return np.array(features_list), np.array(labels_list)
+
+
+def extract_features_from_indices(base_dataset, indices):
+    """
+    Extract all features (simple + advanced) deterministically from indices:
+    - uses base `dataset` returned by create_data_loaders(...) (augment=False)
+    - preserves exact subset order
+    - returns groups aligned 1:1 with X and y for GroupKFold CV
+
+    Returns:
+        X: Feature array of shape (n_samples, n_features)
+        y: Labels array of shape (n_samples,)
+        groups: Audio file paths for grouping samples by source file
+    """
+    features_list = []
+    labels_list = []
+    groups_list = []
+
+    for idx in indices:
+        spec, label = base_dataset[idx]
+
+        if isinstance(spec, torch.Tensor):
+            spec_np = spec[0].cpu().numpy() if spec.ndim == 3 else spec.cpu().numpy()
+        else:
+            spec_np = spec
+
+        all_features = {}
+        all_features.update(extract_simple_features_from_spec(spec_np))
+        all_features.update(extract_bandwise_energy(spec_np, num_bands=8))
+        all_features.update(extract_spectral_features(spec_np))
+        all_features.update(extract_framewise_stats(spec_np))
+        all_features.update(extract_delta_features(spec_np))
+        all_features.update(extract_peak_features(spec_np))
+        all_features.update(extract_logmel_features(spec_np))
+
+        features_list.append(list(all_features.values()))
+        labels_list.append(label.item() if isinstance(label, torch.Tensor) else float(label))
+        groups_list.append(base_dataset.slice_data[idx]['audio_path'])
+
+    return np.array(features_list), np.array(labels_list), np.array(groups_list)
+
+
+def extract_simple_features_from_spec(spec):
+    """Extract simple statistical features from a single spectrogram
+    
+    Args:
+        spec: numpy array or torch tensor of shape (H, W) or (C, H, W)
+    
+    Returns:
+        Dictionary of simple statistical features
+    """
+    
+    features = {
+        'mean': np.mean(spec),
+        'std': np.std(spec),
+        'max': np.max(spec),
+        'min': np.min(spec),
+        'median': np.median(spec),
+        'q25': np.percentile(spec, 25),
+        'q75': np.percentile(spec, 75),
+        'energy': np.sum(spec ** 2),
+        'rms': np.sqrt(np.mean(spec ** 2)),
+        'skewness': stats.skew(spec.flatten()),
+        'kurtosis': stats.kurtosis(spec.flatten())
+    }
+    
+    return features
 
 
 def extract_bandwise_energy(spec, num_bands=8):
@@ -91,7 +167,7 @@ def extract_spectral_features(spec):
     features = {}
 
     # Sum over time to get frequency magnitude profile
-    freq_mag = np.mean(spec, axis=1)
+    freq_mag = np.maximum(np.mean(spec, axis=1), 1e-10)
     freqs = np.arange(len(freq_mag))
 
     # Spectral centroid
@@ -109,7 +185,7 @@ def extract_spectral_features(spec):
     features['spectral_rolloff'] = roll_off_idx[0] if len(roll_off_idx) > 0 else len(freqs)
 
     # Spectral flatness (Wiener entropy)
-    geom_mean = np.exp(np.mean(np.log(freq_mag + 1e-10)))
+    geom_mean = gmean(freq_mag)
     arith_mean = np.mean(freq_mag)
     features['spectral_flatness'] = geom_mean / (arith_mean + 1e-10)
 
@@ -196,7 +272,7 @@ def extract_logmel_features(spec, n_mels=128):
     features = {}
 
     # Convert to log scale
-    spec_db = 10 * np.log10(spec + 1e-10)
+    spec_db = 10 * np.log10(np.maximum(spec, 1e-10))
 
     # Summary stats of log-mel
     features['logmel_mean'] = np.mean(spec_db)
@@ -213,42 +289,3 @@ def extract_logmel_features(spec, n_mels=128):
     features['logmel_energy'] = np.sum(spec_db ** 2)
 
     return features
-
-
-def extract_features(data_loader):
-    """Extract both simple and advanced features"""
-    features_list = []
-    labels_list = []
-
-    for spectrograms, labels in data_loader:
-        for spec, label in zip(spectrograms, labels):
-            spec_np = spec.cpu().numpy()
-
-            all_features = {}
-
-            all_features.update({
-                'mean': np.mean(spec_np),
-                'std': np.std(spec_np),
-                'max': np.max(spec_np),
-                'min': np.min(spec_np),
-                'median': np.median(spec_np),
-                'q25': np.percentile(spec_np, 25),
-                'q75': np.percentile(spec_np, 75),
-                'energy': np.sum(spec_np ** 2),
-                'rms': np.sqrt(np.mean(spec_np ** 2)),
-                'skewness': stats.skew(spec_np.flatten()),
-                'kurtosis': stats.kurtosis(spec_np.flatten())
-            })
-
-            all_features.update(extract_bandwise_energy(spec_np, num_bands=8))
-            all_features.update(extract_spectral_features(spec_np))
-            all_features.update(extract_framewise_stats(spec_np))
-            all_features.update(extract_delta_features(spec_np))
-            all_features.update(extract_peak_features(spec_np))
-            all_features.update(extract_logmel_features(spec_np))
-
-            features_list.append(list(all_features.values()))
-            labels_list.append(label.cpu().numpy() if isinstance(label, torch.Tensor) else label)
-
-    return np.array(features_list), np.array(labels_list)
-
