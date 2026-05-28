@@ -289,3 +289,55 @@ def extract_logmel_features(spec, n_mels=128):
     features['logmel_energy'] = np.sum(spec_db ** 2)
 
     return features
+
+
+def get_feature_names():
+    """
+    Get feature names in the same order as extract_features_from_indices()
+    
+    Returns:
+        List of feature names corresponding to the features extracted
+    """
+    feature_names = []
+    
+    # Simple features
+    feature_names.extend([
+        'mean', 'std', 'max', 'min', 'median', 'q25', 'q75',
+        'energy', 'rms', 'skewness', 'kurtosis'
+    ])
+    
+    # Bandwise energy (8 bands)
+    for band_idx in range(8):
+        feature_names.append(f'band_{band_idx}_energy')
+    
+    # Spectral features
+    feature_names.extend([
+        'spectral_centroid', 'spectral_bandwidth', 'spectral_rolloff', 'spectral_flatness'
+    ])
+    
+    # Framewise stats
+    feature_names.extend([
+        'framewise_mean_mean', 'framewise_mean_std', 'framewise_std_mean', 'framewise_std_std',
+        'framewise_mean_max', 'framewise_mean_min', 'framewise_std_max'
+    ])
+    
+    # Delta features
+    feature_names.extend([
+        'time_delta_mean', 'time_delta_std', 'time_delta_energy',
+        'freq_delta_mean', 'freq_delta_std', 'freq_delta_energy',
+        'time_delta2_mean', 'time_delta2_std'
+    ])
+    
+    # Peak features
+    feature_names.extend([
+        'peak_count_mean', 'peak_count_std', 'peak_count_max',
+        'peak_position_mean', 'peak_position_std'
+    ])
+    
+    # Log-mel features
+    feature_names.extend([
+        'logmel_mean', 'logmel_std', 'logmel_max', 'logmel_min', 'logmel_median',
+        'logmel_q25', 'logmel_q75', 'logmel_energy'
+    ])
+    
+    return feature_names
