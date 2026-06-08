@@ -61,7 +61,6 @@ class FeatureDataset(Dataset):
         return len(self.X)
 
     def __getitem__(self, idx):
-        # Flat feature vector (n_features,) — no channel dim needed for MLP
         return self.X[idx], self.y[idx]
 
 
