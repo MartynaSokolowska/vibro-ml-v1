@@ -20,7 +20,12 @@ def main():
     train_loader, val_loader, test_loader, dataset = create_data_loaders(config)
 
     mode = config['model'].get('type', 'classification')
-    model = VibroNet(mode=mode, num_classes=config['model']['num_classes'])
+    model = VibroNet(
+        mode=mode,
+        num_classes=config['model']['num_classes'],
+        backbone=config['model'].get('backbone'),
+        config=config,
+    )
 
     if mode == 'regression':
         trainer = AudioRegressionTrainer(model=model, config=config['training'], device=device)
@@ -41,6 +46,8 @@ def main():
         torch.save({
             'model_state_dict': trained_model.state_dict(),
             'mode': 'regression',
+            'backbone': config['model'].get('backbone', 'resnet18'),
+            'model_config': config['model'],
             'slice_length': config['data']['slice_length'],
             'sample_rate': config['data']['sample_rate'],
             'config': config
@@ -63,6 +70,8 @@ def main():
     torch.save({
         'model_state_dict': trained_model.state_dict(),
         'mode': 'classification',
+        'backbone': config['model'].get('backbone', 'resnet18'),
+        'model_config': config['model'],
         'temp_to_label': dataset.temp_to_label,
         'label_to_temp': dataset.label_to_temp,
         'slice_length': config['data']['slice_length'],

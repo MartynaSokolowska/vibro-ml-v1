@@ -1,0 +1,17 @@
+data:
+  slice_length: 0.1
+  sample_rate: 48000
+
+model:
+  backbone: "resnet18"
+  input_channels: 3
+  spectrogram_size: null
+  pretrained: true
+  pretrained_weights: null  # torchvision weights will be used if pretrained: true and no pretrained_weights provided
+  type: "classification"
+  num_classes: 6
+  classes: [25, 30, 35, 40, 45, 50]
+
+training:
+  batch_size: 16
+  num_epochs: 30

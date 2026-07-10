@@ -1,25 +1,49 @@
+from __future__ import annotations
+
 import torch.nn as nn
-import torchvision.models as models
+
+from src.models.audio_backbones import build_audio_model, resolve_model_settings
 
 
 class VibroNet(nn.Module):
-    """ResNet18-based audio classifier / predictor"""
+    """Configurable audio classifier / regressor.
+    Supports multiple audio backbones:
+    - resnet18 (current baseline)
+    - cnn14 / panns / panns_cnn14
+    - ast
+    - htsat / hts-at
+    - beats
+    """
 
-    def __init__(self, mode='classification', num_classes=8):
-        """
-        Args:
-            mode (str): 'classification' or 'regression'
-            num_classes: Number of temperature classes for classification
-        """
-        super(VibroNet, self).__init__()
+    def __init__(
+        self,
+        mode: str = "classification",
+        num_classes: int = 8,
+        backbone: str | None = None,
+        config: dict | None = None,
+        pretrained: bool | None = None,
+        input_channels: int | None = None,
+    ):
+        super().__init__()
 
-        self.resnet = models.resnet18(weights='DEFAULT')
+        settings = resolve_model_settings(config=config, backbone=backbone, input_channels=input_channels)
+        self.backbone_name = settings.backbone
+        self.mode = mode
+        self.num_classes = num_classes
 
-        num_features = self.resnet.fc.in_features
-        if mode == 'regression':
-            self.resnet.fc = nn.Linear(num_features, 1)
-        else:
-            self.resnet.fc = nn.Linear(num_features, num_classes)
+        pretrained_weights = None
+        if isinstance(config, dict):
+            pretrained_weights = config.get('model', {}).get('pretrained_weights')
+
+        self.model = build_audio_model(
+            backbone=settings.backbone,
+            mode=mode,
+            num_classes=num_classes,
+            pretrained=settings.pretrained if pretrained is None else pretrained,
+            input_channels=settings.input_channels,
+            pretrained_weights=pretrained_weights,
+            config=config,
+        )
 
     def forward(self, x):
-        return self.resnet(x)
+        return self.model(x)

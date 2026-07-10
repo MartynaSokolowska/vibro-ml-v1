@@ -1,15 +1,18 @@
 import os
+from typing import Any, cast
 
 import numpy as np
 import torch
 import torchaudio
 import torchaudio.transforms as T
+import torch.nn.functional as F
 from audiomentations import Compose, Gain, PitchShift
 from torch.utils.data import Dataset
 
+from src.data.audio_frontend import build_mel_spectrogram_transforms
 from src.data.dataset_utils import detect_pulses, get_temperature_sets, interpolate_temperatures
+from src.models.audio_backbones import resolve_model_settings
 from src.preprocessing.preprocessing_pipeline import AudioPipeline
-from src.utils.config_manager import load_config
 
 
 class AudioTemperatureDataset(Dataset):
@@ -34,29 +37,30 @@ class AudioTemperatureDataset(Dataset):
         self.overlap = config["data"]["overlap"]
         self.sample_rate = config["data"]["sample_rate"]
         self.augment = augment
+        self.preprocessing_config = config.get("preprocessing", {})
         self.should_interpolate = config["data"].get("should_interpolate", False)
-        self.classes = config["model"]["classes"]
+        self.classes = config["model"].get("classes", [])
 
         self.mode = config["model"]["type"]
         if self.mode not in ["classification", "regression"]:
             raise ValueError(f"Incorrect model type: {self.mode}. Allowed: 'classification', 'regression'.")
 
+        self.model_settings = resolve_model_settings(config=config)
+        self.backbone = self.model_settings.backbone
+        self.input_channels = self.model_settings.input_channels
+        self.spectrogram_size = self.model_settings.spectrogram_size
+        self.use_waveform = self.backbone == "cnn14"
+
         if self.mode == "classification":
             self.temp_to_label = {temp: idx for idx, temp in enumerate(config["model"]["classes"])}
             self.label_to_temp = {v: k for k, v in self.temp_to_label.items()}
 
-        self.slice_data = self._create_slice_index()
+        self.slice_data: list[dict[str, Any]] = self._create_slice_index()
 
-        self.mel_spectrogram = T.MelSpectrogram(
-            sample_rate=self.sample_rate,
-            n_fft=2048,
-            hop_length=512,
-            n_mels=128,
-            f_min=20,
-            f_max=8000
+        self.mel_spectrogram, self.db_transform, self.mel_spectrogram_settings = build_mel_spectrogram_transforms(
+            self.sample_rate,
+            config,
         )
-
-        self.db_transform = T.AmplitudeToDB(top_db=80)
 
         if self.augment:
             self.audio_augment = Compose([
@@ -73,13 +77,13 @@ class AudioTemperatureDataset(Dataset):
             for audio_file in files:
                 if (audio_file.lower().endswith(AudioTemperatureDataset.FILE_ENDING)
                         and not audio_file.lower().startswith(AudioTemperatureDataset.NOISE_FILE_PREFIX)):
-                    audio_path = os.path.join(root, audio_file)
+                    audio_path = cast(str, os.path.join(root, audio_file))
                     annotation_file = audio_file.replace('.wav', '.json')
                     annotation_path = os.path.join(self.annotation_root, annotation_file)
 
                     if os.path.exists(annotation_path):
 
-                        if not self._is_valid_audio_file(audio_path):
+                        if not self._is_valid_audio_file(cast(str, audio_path)):
                             print(f"Warning: Invalid audio file '{audio_path}' - skipping")
                             continue
 
@@ -180,7 +184,7 @@ class AudioTemperatureDataset(Dataset):
 
         return slice_audio
 
-    def _is_valid_audio_file(self, audio_path: str) -> bool:
+    def _is_valid_audio_file(self, audio_path: str | bytes) -> bool:
         """
         Returns false if the audio file is invalid (e.g., cannot be loaded, has zero length, or is silent),
         otherwise true.
@@ -226,35 +230,51 @@ class AudioTemperatureDataset(Dataset):
         return len(self.slice_data)
 
     def __getitem__(self, idx):
-        slice_info = self.slice_data[idx]
+        slice_info: dict[str, Any] = self.slice_data[idx]
 
         # Extract the specific slice
         audio_slice = self._extract_slice(
-            slice_info['audio_path'],
-            slice_info['pulse_time']
+            str(slice_info['audio_path']),
+            float(slice_info['pulse_time'])
         )
 
         pipeline = AudioPipeline(audio_slice.squeeze(0).numpy(), self.sample_rate)
-        config = load_config()
-        processed_slice = pipeline.run_from_config(config["preprocessing"])
+        processed_slice = pipeline.run_from_config(self.preprocessing_config)
         audio_slice = torch.from_numpy(processed_slice.astype(np.float32)).unsqueeze(0)
 
         if self.augment and torch.rand(1).item() < 0.5:
             audio_slice = self._apply_audio_augmentation(audio_slice)
+
+        if self.use_waveform:
+            waveform = audio_slice
+            if self.transform:
+                waveform = self.transform(waveform)
+            label = self.temp_to_label[float(slice_info['temperature_set'])] if self.mode == 'classification' else float(slice_info['temperature'])
+            return waveform, label
 
         spectrogram = self._audio_to_spectrogram(audio_slice)
 
         if self.augment:
             spectrogram = self._apply_spectrogram_augmentation(spectrogram)
 
-        # Convert to 3-channel image for ResNet (RGB)
-        spectrogram = torch.stack([spectrogram, spectrogram, spectrogram])
+        if self.spectrogram_size is not None and tuple(spectrogram.shape[-2:]) != self.spectrogram_size:
+            spectrogram = F.interpolate(
+                spectrogram.unsqueeze(0).unsqueeze(0),
+                size=self.spectrogram_size,
+                mode="bilinear",
+                align_corners=False,
+            ).squeeze(0).squeeze(0)
+
+        if self.input_channels == 1:
+            spectrogram = spectrogram.unsqueeze(0)
+        else:
+            spectrogram = spectrogram.unsqueeze(0).repeat(self.input_channels, 1, 1)
 
         if self.transform:
             spectrogram = self.transform(spectrogram)
 
         if self.mode == 'classification':
-            label = self.temp_to_label[slice_info['temperature_set']]
+            label = self.temp_to_label[float(slice_info['temperature_set'])]
         else:
             label = float(slice_info['temperature'])
 

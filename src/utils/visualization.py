@@ -1,8 +1,9 @@
 import matplotlib.pyplot as plt
 import random
-import torch
 import torchaudio
 import torchaudio.transforms as T
+
+from src.data.audio_frontend import build_mel_spectrogram_transforms
 
 def plot_training_history(history):
     """Plot training history"""
@@ -77,7 +78,7 @@ def show_random_spectrogram(dataset, n_examples=1):
         plt.show()
 
 
-def show_file_spectrogram(audio_path, sample_rate=48000):
+def show_file_spectrogram(audio_path, sample_rate=48000, config=None):
     waveform, sr = torchaudio.load(audio_path)
 
     if sr != sample_rate:
@@ -88,15 +89,7 @@ def show_file_spectrogram(audio_path, sample_rate=48000):
     if waveform.shape[0] > 1:
         waveform = waveform.mean(dim=0, keepdim=True)
 
-    mel_transform = T.MelSpectrogram(
-        sample_rate=sr,
-        n_fft=2048,
-        hop_length=512,
-        n_mels=128,
-        f_min=20,
-        f_max=8000
-    )
-    db_transform = T.AmplitudeToDB(top_db=80)
+    mel_transform, db_transform, _settings = build_mel_spectrogram_transforms(sr, config)
 
     mel_spec = mel_transform(waveform)
     mel_spec_db = db_transform(mel_spec)

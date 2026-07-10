@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 import os
 
 from src.data.audio_dataset import AudioTemperatureDataset
-from src.training.VibroNet import VibroNet
+from src.training import VibroNet
 from src.utils.config_manager import load_config
 from src.utils.evaluation.evaluate_regression import evaluate_and_plot
 
@@ -41,9 +41,17 @@ def main():
 """
 
 def load_trained_model(model_path, device):
-    checkpoint = torch.load(model_path, map_location=device)
+    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
 
-    model = VibroNet(mode="regression", num_classes=1)
+    config = checkpoint.get('config', {})
+    model_config = checkpoint.get('model_config', config.get('model', {}))
+
+    model = VibroNet(
+        mode=checkpoint.get('mode', model_config.get('type', 'regression')),
+        num_classes=model_config.get('num_classes', 1),
+        backbone=checkpoint.get('backbone', model_config.get('backbone')),
+        config=config,
+    )
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
     model.eval()

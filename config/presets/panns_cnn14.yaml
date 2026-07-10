@@ -1,0 +1,26 @@
+data:
+  slice_length: 0.5 # needs slightly longer slices
+  sample_rate: 16000
+
+model:
+  backbone: "panns"
+  input_channels: 1
+  spectrogram_size: null
+  pretrained: true
+  pretrained_weights: "https://zenodo.org/records/3987831/files/Cnn14_16k_mAP=0.438.pth?download=1"
+  type: "regression"
+  num_classes: 6
+  classes: [25, 30, 35, 40, 45, 50]
+
+preprocessing:
+  mel_spectrogram:
+    n_fft: 512
+    hop_length: 160
+    n_mels: 64
+    f_min: 50
+    f_max: 8000
+    top_db: 80
+
+training:
+  batch_size: 16
+  num_epochs: 30

@@ -4,7 +4,7 @@ data:
   temperature_file: None
   slice_length: 0.1 # seconds
   overlap: 0.5 # 0.5 for 50% overlap
-  sample_rate: 48000
+  sample_rate: 44100
   test_split: 0.2
   val_split: 0.2
   random_seed: 42
@@ -15,6 +15,13 @@ data:
 model:
   pretrained: true
   type: "regression"  # supports classification and regression
+  backbone: "resnet18"  # try: panns, ast, htsat, beats
+  input_channels: 3
+  spectrogram_size: null  # e.g. [128, 224] for AST/HTS-AT/BEATs-style runs
+  # Optionally specify a path or URL to pretrained weights for the selected backbone.
+  # If provided, the loader will attempt to permissively map checkpoint keys to the model.
+  # Example: pretrained_weights: "https://zenodo.org/records/3987831/files/Cnn14_16k_mAP=0.438.pth?download=1"
+  pretrained_weights: null
   # for classification
   num_classes: 6
   classes: [25, 30, 35, 40, 45, 50]
@@ -35,6 +42,13 @@ augmentation:
   time_stretch_factors: [0.8, 0.9, 1.0, 1.1, 1.2]
 
 preprocessing:
+  mel_spectrogram:
+    n_fft: 2048
+    hop_length: 512
+    n_mels: 128
+    f_min: 20
+    f_max: 8000
+    top_db: 80
   normalize: "peak"
   filters:
     - type: "bandpass"

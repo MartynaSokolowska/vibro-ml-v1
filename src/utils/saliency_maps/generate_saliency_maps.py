@@ -14,15 +14,18 @@ def load_trained_model(model_path, device):
 
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
 
-    mode = checkpoint.get('mode', 'classification')
     config = checkpoint.get('config', {})
+    model_config = checkpoint.get('model_config', config.get('model', {}))
+    mode = checkpoint.get('mode', model_config.get('type', 'classification'))
 
     if mode == 'classification':
-        num_classes = len(checkpoint.get('label_to_temp', {}))
+        num_classes = model_config.get('num_classes', len(checkpoint.get('label_to_temp', {})))
     else:
-        num_classes = config.get('model', {}).get('num_classes', 6)
+        num_classes = model_config.get('num_classes', 6)
 
-    model = VibroNet(mode=mode, num_classes=num_classes)
+    backbone = checkpoint.get('backbone', model_config.get('backbone'))
+
+    model = VibroNet(mode=mode, num_classes=num_classes, backbone=backbone, config=config)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
     model.eval()
