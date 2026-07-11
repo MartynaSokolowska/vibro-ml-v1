@@ -1,17 +1,26 @@
 data:
-  slice_length: 0.1
-  sample_rate: 48000
+  slice_length: 0.5
+  sample_rate: 16000
 
 model:
   backbone: "ast"
   input_channels: 1
-  spectrogram_size: [128, 224]
-  pretrained: false
-  pretrained_weights: null  # set to pretrained checkpoint path/URL if available
-  type: "classification"
+  spectrogram_size: [128, 51]
+  pretrained: true
+  ast_audioset_pretrain: true
+  ast_model_size: "base384"
+  type: "regression"
   num_classes: 6
   classes: [25, 30, 35, 40, 45, 50]
 
 training:
   batch_size: 8
   num_epochs: 50
+
+preprocessing:
+  mel_spectrogram:
+    n_fft: 512
+    hop_length: 160
+    n_mels: 128
+    f_min: 50
+    f_max: 8000

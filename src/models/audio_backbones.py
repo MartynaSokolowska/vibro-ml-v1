@@ -13,6 +13,7 @@ import torchvision.models as tv_models
 from torch.hub import load_state_dict_from_url
 
 from .third_party.panns.models import Cnn14
+from .third_party.ast.ast_models import ASTModel
 
 
 @dataclass(frozen=True)
@@ -38,13 +39,18 @@ _BACKBONE_ALIASES = {
 _BACKBONE_PRESETS = {
     "resnet18": {"input_channels": 3, "spectrogram_size": None},
     "cnn14": {"input_channels": 1, "spectrogram_size": None},
+    # (mel_bins, frames). NOTE: the real AST (used below) was pretrained on 1024-frame
+    # (10.24s) AudioSet clips. It will still run at other lengths -- ASTModel cuts/
+    # bilinear-interpolates its positional embedding to fit -- but 224 frames (~2.24s)
+    # is a big departure from the pretraining length. If your clips are short, either
+    # override spectrogram_size in config, or expect the positional embedding transfer
+    # to carry less benefit than it did in the paper.
     "ast": {"input_channels": 1, "spectrogram_size": (128, 224)},
     "htsat": {"input_channels": 1, "spectrogram_size": (128, 224)},
     "beats": {"input_channels": 1, "spectrogram_size": (128, 256)},
 }
 
 _TRANSFORMER_PRESETS = {
-    "ast": {"patch_size": (16, 16), "embed_dim": 256, "depth": 6, "num_heads": 8, "dropout": 0.1},
     "htsat": {"patch_size": (8, 8), "embed_dim": 224, "depth": 8, "num_heads": 8, "dropout": 0.1},
     "beats": {"patch_size": (4, 4), "embed_dim": 320, "depth": 10, "num_heads": 8, "dropout": 0.15},
 }
@@ -159,7 +165,6 @@ class AudioResNet18(nn.Module):
 
 
 def _build_panns_cnn14_kwargs(
-    num_classes: int,
     config: Optional[dict] = None,
 ) -> dict:
     preprocessing_config = (config or {}).get("preprocessing", {}) if isinstance(config, dict) else {}
@@ -167,10 +172,6 @@ def _build_panns_cnn14_kwargs(
 
     mel_bins = int(mel_config.get("n_mels", 64))
 
-    # Cnn14's bn0 is hardcoded as nn.BatchNorm2d(64) -- it is NOT parameterized by
-    # mel_bins. Any value other than 64 will fail with a channel-mismatch error inside
-    # bn0, before the input even reaches the conv blocks. 64 is also the value CNN14's
-    # official pretrained checkpoints were trained with.
     _REQUIRED_MEL_BINS_FOR_CNN14 = 64
     if mel_bins != _REQUIRED_MEL_BINS_FOR_CNN14:
         raise ValueError(
@@ -181,12 +182,6 @@ def _build_panns_cnn14_kwargs(
             "different backbone for other mel-bin resolutions."
         )
 
-    # Cnn14's real constructor signature is (sample_rate, window_size, hop_size, mel_bins,
-    # fmin, fmax, classes_num) -- no enable_specaug/enable_mixup/dropout params exist.
-    # spec_augmenter is unconditionally built and only applied when self.training is
-    # True; we disable it explicitly after construction below instead. Mixup is applied
-    # via a mixup_lambda argument to forward(), which CNN14Backbone.forward() never
-    # passes, so it's already inert by default.
     return {
         "sample_rate": int((config or {}).get("data", {}).get("sample_rate", 16000)) if isinstance(config, dict) else 16000,
         "window_size": int(mel_config.get("n_fft", 1024)),
@@ -204,15 +199,12 @@ class CNN14Backbone(nn.Module):
         mode: str,
         num_classes: int,
         input_channels: int = 1,
-        pretrained: bool = True,
         config: Optional[dict] = None,
     ):
         super().__init__()
 
-        del pretrained  # The vendored PANNs model is initialized independently and loaded via checkpoints.
-
         self.num_classes = num_classes
-        cnn14_kwargs = _build_panns_cnn14_kwargs(num_classes=num_classes, config=config)
+        cnn14_kwargs = _build_panns_cnn14_kwargs(config=config)
         self.panns = Cnn14(**cnn14_kwargs)
 
         # CNN14 halves the time axis 5 times (conv_block1-5, each pool_size=(2, 2)), same
@@ -224,11 +216,6 @@ class CNN14Backbone(nn.Module):
         self._min_time_frames = 32  # 2 ** 5
         self._min_input_samples = (self._min_time_frames - 1) * self._hop_size
 
-        # Upstream Cnn14 always builds spec_augmenter and applies it whenever
-        # self.training is True -- there's no constructor flag to disable it. Swap it
-        # for a no-op when we don't want augmentation, regardless of train/eval mode.
-        # (Mixup is applied via a mixup_lambda argument to forward(), which we never
-        # pass, so it's already inert -- no equivalent guard needed for it.)
         model_config = (config or {}).get("model", {}) if isinstance(config, dict) else {}
         enable_specaug = bool(model_config.get("enable_specaug", False))
         if not enable_specaug and hasattr(self.panns, "spec_augmenter"):
@@ -302,6 +289,100 @@ class CNN14Backbone(nn.Module):
         return self.head(embedding)
 
 
+class ASTBackbone(nn.Module):
+    """Wrapper around AST (`ast_models.ASTModel`).
+
+    Two independent pretraining knobs, both handled inside the vendored ASTModel:
+      - imagenet_pretrain: downloads/loads a DeiT ViT checkpoint via timm (cheap, always
+        recommended per the paper).
+      - audioset_pretrain: downloads/loads the official AudioSet-pretrained AST weights
+        (0.459 mAP checkpoint). Requires model_size='base384' and imagenet_pretrain=True.
+    These are separate from this project's generic `pretrained_weights` config option,
+    which -- if set -- is loaded afterwards on top via `_load_pretrained_weights_into_model`
+    (e.g. to resume from your own previously fine-tuned checkpoint).
+    """
+
+    _MIN_PATCH_KERNEL = 16  # AST always uses a 16x16 patch kernel regardless of stride.
+
+    def __init__(
+        self,
+        mode: str,
+        num_classes: int,
+        input_channels: int = 1,
+        pretrained: bool = True,
+        spectrogram_size: Optional[Tuple[int, int]] = None,
+        config: Optional[dict] = None,
+    ):
+        super().__init__()
+
+        if input_channels != 1:
+            raise ValueError(
+                f"ASTBackbone requires input_channels=1 (got {input_channels}). AST's patch "
+                "embedding conv is single-channel by construction (it was adapted from a "
+                "3-channel ViT by averaging the 3 input channels down to 1, per the paper's "
+                "ImageNet-transfer scheme) -- there's no multi-channel variant to fall back to."
+            )
+
+        model_config = (config or {}).get("model", {}) if isinstance(config, dict) else {}
+
+        mel_bins, num_frames = spectrogram_size or _BACKBONE_PRESETS["ast"]["spectrogram_size"]
+        if mel_bins < self._MIN_PATCH_KERNEL or num_frames < self._MIN_PATCH_KERNEL:
+            raise ValueError(
+                f"AST spectrogram_size {(mel_bins, num_frames)} is too small: both dimensions "
+                f"must be at least {self._MIN_PATCH_KERNEL} (AST's patch kernel is fixed at "
+                f"{self._MIN_PATCH_KERNEL}x{self._MIN_PATCH_KERNEL}). Increase your clip length "
+                "or the mel_bins count."
+            )
+
+        fstride = int(model_config.get("ast_fstride", 10))  # 10 => overlap of 6, matches the paper.
+        tstride = int(model_config.get("ast_tstride", 10))
+        audioset_pretrain = bool(model_config.get("ast_audioset_pretrain", False))
+        model_size = model_config.get("ast_model_size", "base384")
+
+        if audioset_pretrain and (model_size != "base384" or not pretrained):
+            raise ValueError(
+                "ast_audioset_pretrain=True requires ast_model_size='base384' and pretrained=True "
+                "(imagenet_pretrain must also be on) -- these are the only weights the official "
+                "AST release provides."
+            )
+
+        label_dim = 1 if mode == "regression" else num_classes
+
+        self.model = ASTModel(
+            label_dim=label_dim,
+            fstride=fstride,
+            tstride=tstride,
+            input_fdim=mel_bins,
+            input_tdim=num_frames,
+            imagenet_pretrain=pretrained,
+            audioset_pretrain=audioset_pretrain,
+            model_size=model_size,
+            verbose=False,
+        )
+        self.backbone_name = "ast"
+        self.mel_bins = mel_bins
+        self.num_frames = num_frames
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # This project's spectrogram convention (matches AudioResNet18 / the generic
+        # transformer backbone) is channels-first: (B, 1, mel_bins, time_frames), or
+        # already-squeezed (B, mel_bins, time_frames). The real ASTModel instead expects
+        # (B, time_frames, mel_bins) -- it does its own unsqueeze(1)+transpose(2,3)
+        # internally. Convert here rather than pushing this quirk onto the dataloader.
+        if x.dim() == 4:
+            if x.shape[1] != 1:
+                raise ValueError(
+                    f"ASTBackbone expects a single-channel spectrogram, got {x.shape[1]} channels."
+                )
+            x = x.squeeze(1)
+        elif x.dim() != 3:
+            raise ValueError(f"ASTBackbone expects a 3D or 4D spectrogram tensor, got shape {tuple(x.shape)}.")
+
+        # x is now (B, mel_bins, time_frames) -> AST wants (B, time_frames, mel_bins)
+        x = x.transpose(1, 2)
+        return self.model(x)
+
+
 class SpectrogramTransformerBackbone(nn.Module):
     def __init__(
         self,
@@ -310,10 +391,8 @@ class SpectrogramTransformerBackbone(nn.Module):
         input_channels: int,
         variant: str,
         spectrogram_size: Tuple[int, int],
-        pretrained: bool = True,
     ):
         super().__init__()
-        del pretrained  # These are training-friendly transformer variants.
 
         if variant not in _TRANSFORMER_PRESETS:
             raise ValueError(f"Unsupported transformer variant '{variant}'")
@@ -416,6 +495,15 @@ def build_audio_model(
             pretrained=settings.pretrained if pretrained is None else pretrained,
             config=config,
         )
+    elif settings.backbone == "ast":
+        model = ASTBackbone(
+            mode=mode,
+            num_classes=num_classes,
+            input_channels=settings.input_channels,
+            pretrained=settings.pretrained if pretrained is None else pretrained,
+            spectrogram_size=settings.spectrogram_size or _BACKBONE_PRESETS["ast"]["spectrogram_size"],
+            config=config,
+        )
     else:
         model = SpectrogramTransformerBackbone(
             mode=mode,
@@ -427,7 +515,12 @@ def build_audio_model(
         )
 
     if resolved_pretrained_weights:
-        target_model = getattr(model, "backbone", None) or getattr(model, "panns", None) or model
+        target_model = (
+            getattr(model, "backbone", None)
+            or getattr(model, "panns", None)
+            or getattr(model, "model", None)
+            or model
+        )
         _load_pretrained_weights_into_model(target_model, resolved_pretrained_weights)
 
     return model
@@ -466,12 +559,7 @@ def _strip_prefix_from_keys(state_dict: dict, prefix: str) -> dict:
 
 
 def _load_pretrained_weights_into_model(model: nn.Module, path_or_url: str) -> None:
-    """Load weights from a URL or local path into `model` permissively (non-strict).
-
-    The loader will try to extract a state_dict from common checkpoint wrappers and will
-    attempt to strip common prefixes (like 'module.' from DataParallel) and only loads
-    parameters whose names and tensor shapes match the current model.
-    """
+    """Load weights from a URL or local path into `model` permissively (non-strict)."""
 
     def _matching_state_dict(candidate_state: dict) -> dict:
         model_state = model.state_dict()

@@ -16,3 +16,6 @@ git+https://github.com/laszukdawid/PyEMD
 soundfile~=0.13.1
 pandas~=2.2.3
 torchlibrosa~=0.0.4
+wget~=3.2
+timm==0.4.5
+setuptools~=78.1.0
